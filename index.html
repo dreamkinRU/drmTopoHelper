@@ -491,7 +491,14 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     <div class="section-header"><span>Оформление</span><span class="toggle-icon">▼</span></div>
     <div class="section-content">
       <label>Цвет</label><input type="color" id="wpColor" value="#e8a030">
-      <label>Форма</label><select id="wpShape"><option value="circle">Круг</option><option value="square">Квадрат</option><option value="diamond">Ромб</option></select>
+      <label>Форма</label>
+<div class="visual-selector" id="wpShapeSelector">
+  <button class="visual-option marker-opt active" data-value="circle" title="Круг"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6" fill="currentColor"/></svg></button>
+  <button class="visual-option marker-opt" data-value="square" title="Квадрат"><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" fill="currentColor"/></svg></button>
+  <button class="visual-option marker-opt" data-value="diamond" title="Ромб"><svg viewBox="0 0 20 20"><polygon points="10,2 18,10 10,18 2,10" fill="currentColor"/></svg></button>
+  <button class="visual-option marker-opt" data-value="cross" title="Крест"><svg viewBox="0 0 20 20"><line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="3"/><line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="3"/></svg></button>
+  <button class="visual-option marker-opt" data-value="triangle" title="Треугольник"><svg viewBox="0 0 20 20"><polygon points="10,2 18,18 2,18" fill="currentColor"/></svg></button>
+</div>
       <label>Размер</label>
       <div class="size-selector" id="wpSizeSelector">
         <button class="size-option active" data-wp-size="small">S</button>
@@ -1521,28 +1528,29 @@ var SV = "http://www.w3.org/2000/svg";
         if (t.to.side && void 0 !== t.to.t && null !== t.to.t) o = y(s, t.to.side, t.to.t);
         else { let e = { x: i.x + i.w / 2, y: i.y + i.h / 2 }; o = f(s, e.x, e.y) }
 
-        // Единая обработка waypoints
-        let waypoints = t.waypoints || [], l = [], relIndices = [];
-        let allAbs = [n];
+        // Собираем все waypoints, сохраняя null для относительных
+        let waypoints = t.waypoints || [];
+        let allPts = [n];
+        let relIndices = []; // { idx, pos: индекс в allPts }
         waypoints.forEach((wp, idx) => {
             if (wp.t !== undefined) {
-                allAbs.push(null);
-                relIndices.push({ idx, pos: allAbs.length - 1 });
+                allPts.push(null);
+                relIndices.push({ idx, pos: allPts.length - 1 });
             } else {
                 let ax = wp.offsetX, ay = wp.offsetY;
                 if (wp.blockId) {
                     let b = L.getBlock(wp.blockId);
                     if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
                 }
-                allAbs.push({ x: ax, y: ay, style: wp.style || {} });
+                allPts.push({ x: ax, y: ay, style: wp.style || {} });
             }
         });
-        allAbs.push(o);
-        l = allAbs.slice(1, -1).filter(p => p !== null);
+        allPts.push(o);
 
-        // Строим кривую (используем только абсолютные точки)
-        let a = [n, ...l, o];
-        const c = a.map((e, t) => 0 === t || t === a.length - 1 ? {} : e.style || {}),
+        // Временный массив l только из абсолютных точек для построения кривой
+        let absOnly = allPts.filter(p => p !== null);
+        let a = [...absOnly]; // копия
+        const c = a.map((p, i) => (i === 0 || i === a.length - 1) ? {} : (p.style || {})),
             d = a.length, r = new Array(d),
             h = (e, t) => { const n = Math.hypot(e, t) || 1; return { x: e / n, y: t / n } },
             m = n.side || "right",
@@ -1576,7 +1584,7 @@ var SV = "http://www.w3.org/2000/svg";
         }
         const k = g.join(" ");
 
-        // Если есть относительные точки, вычисляем их абсолютные позиции на кривой
+        // Вычисляем абсолютные координаты для относительных waypoints
         if (relIndices.length > 0) {
             let tempPath = document.createElementNS(SV, "path");
             tempPath.setAttribute("d", k);
@@ -1585,18 +1593,15 @@ var SV = "http://www.w3.org/2000/svg";
                 let wp = waypoints[r.idx];
                 let targetDist = wp.t * totalLen;
                 let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
-                // Вставляем абсолютную позицию в l (индекс в l соответствует индексу в waypoints)
-                let idxInL = r.idx; // напрямую, потому что l уже содержит только абсолютные точки, и их порядок совпадает с waypoints
-                if (idxInL < l.length) {
-                    l[idxInL] = { x: pt.x, y: pt.y, style: wp.style || {} };
-                } else {
-                    // На всякий случай добавляем в конец
-                    l.push({ x: pt.x, y: pt.y, style: wp.style || {} });
-                }
+                // Обновляем элемент в allPts (заменяем null)
+                allPts[r.pos] = { x: pt.x, y: pt.y, style: wp.style || {} };
             });
         }
 
-        // Отрисовка кривой и всех точек
+        // Формируем итоговый массив l, исключая начальную и конечную точки
+        let l = allPts.slice(1, -1).filter(p => p !== null);
+
+        // Отрисовка (без изменений)
         let v = t.stroke || "#e8a030", b = t.strokeWidth || 2,
             w = t.dashArray && "none" !== t.dashArray ? t.dashArray : "none",
             I = t.startMarker || "none", E = t.endMarker || "triangle",
@@ -2404,27 +2409,29 @@ setupWaypointInteraction: function() {
   }
 
   function Y(e, t, n) {
-  	const o = e.style || {};
-  	document.getElementById("wpColor").value = o.color || "#e8a030"; 
-// Подсветка выбранной формы в визуальном селекторе
-const shape = o.shape || "circle";
-document.querySelectorAll("#wpShapeSelector .visual-option").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.value === shape);
-});  	const i = o.size || "medium";
-  	document.querySelectorAll("#wpSizeSelector .size-option").forEach(e => {
-  		e.classList.toggle("active", e.dataset.wpSize === i)
-  	}), 
+    const o = e.style || {};
+    document.getElementById("wpColor").value = o.color || "#e8a030";
+    // Подсветка выбранной формы
+    const shape = o.shape || "circle";
+    document.querySelectorAll("#wpShapeSelector .visual-option").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.value === shape);
+    });
+    const i = o.size || "medium";
+    document.querySelectorAll("#wpSizeSelector .size-option").forEach(el => {
+        el.classList.toggle("active", el.dataset.wpSize === i);
+    });
+    // Относительные поля
     document.getElementById("wpT").value = e.t !== undefined ? Math.round(e.t * 100) : 50;
     document.getElementById("wpTVal").textContent = (e.t !== undefined ? Math.round(e.t * 100) : 50) + '%';
-    document.getElementById("wpTension").value = void 0 !== o.tension ? o.tension : .5; 
-    document.getElementById("wpTensionVal").textContent = void 0 !== o.tension ? o.tension : .5; 
-    document.getElementById("wpSkew").value = void 0 !== o.skew ? o.skew : 0; 
-    document.getElementById("wpSkewVal").textContent = void 0 !== o.skew ? o.skew : 0; 
-    document.getElementById("wpAngle").value = o.angleAdjust || 0; 
-    document.getElementById("wpAngleVal").textContent = o.angleAdjust || 0; 
-    document.getElementById("waypointPanel").dataset.connId = t; 
-    document.getElementById("waypointPanel").dataset.wpIndex = n
-    }
+    document.getElementById("wpTension").value = void 0 !== o.tension ? o.tension : .5;
+    document.getElementById("wpTensionVal").textContent = void 0 !== o.tension ? o.tension : .5;
+    document.getElementById("wpSkew").value = void 0 !== o.skew ? o.skew : 0;
+    document.getElementById("wpSkewVal").textContent = void 0 !== o.skew ? o.skew : 0;
+    document.getElementById("wpAngle").value = o.angleAdjust || 0;
+    document.getElementById("wpAngleVal").textContent = o.angleAdjust || 0;
+    document.getElementById("waypointPanel").dataset.connId = t;
+    document.getElementById("waypointPanel").dataset.wpIndex = n;
+}
 
   function X(e, t) {
   	let n = L.state.selectedConnectionId;
@@ -2885,6 +2892,7 @@ function T(e, t) {
   		localStorage.removeItem(fe)
   	}
   }
+  
   document.getElementById("connStrokeColor").addEventListener("input", e => X("stroke", e.target.value)), document.getElementById("connStrokeWidth").addEventListener("input", e => {
   		let t = parseInt(e.target.value) || 2;
   		document.getElementById("connStrokeWidthVal").textContent = t, X("strokeWidth", t)
@@ -2922,7 +2930,10 @@ function T(e, t) {
   		e.addEventListener("click", () => {
   			e.parentElement.classList.toggle("collapsed")
   		})
-  	}), document.getElementById("wpColor").addEventListener("input", e => T("color", e.target.value)), document.getElementById("wpShape").addEventListener("change", e => T("shape", e.target.value)), document.getElementById("wpSizeSelector").addEventListener("click", e => {
+  	}),
+    
+    document.getElementById("wpColor").addEventListener("input", e => T("color", e.target.value)), 
+    document.getElementById("wpSizeSelector").addEventListener("click", e => {
   		const t = e.target.closest(".size-option");
   		t && T("size", t.dataset.wpSize)
   	}), document.getElementById("wpTension").addEventListener("input", e => {
@@ -3018,7 +3029,7 @@ document.addEventListener("keydown", e => {
   		t.innerHTML = h(e.getAttribute("data-icon") || "", e.getAttribute("style") || "").trim();
   		let n = t.content.firstElementChild;
   		n && e.replaceWith(n)
-  	}),
+  	});
 
   	document.getElementById("sizeSelector").addEventListener("click", e => {
   		let t = e.target.closest(".size-option");
