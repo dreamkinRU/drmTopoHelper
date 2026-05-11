@@ -385,7 +385,6 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
       <line id="guideLineX" class="guide-line" x1="0" y1="0" x2="0" y2="0"/>
       <line id="guideLineY" class="guide-line" x1="0" y1="0" x2="0" y2="0"/>
     </svg>
-    <svg id="itemConnSvg"></svg>
     <svg id="tempSvg"><path id="tempConnection"/></svg>
     
     <div class="empty-hint" id="emptyHint"><span class="drm-icon-slot" data-icon="empty_blocks"></span><p>Нажмите «Создать», чтобы добавить первый блок</p></div>
@@ -883,18 +882,14 @@ function ce(){
             B.push({type:"modal-edit",undo:()=>S(t),redo:()=>S(n)})
         }
     }
-    $.classList.remove("open"),L.state.editingBlockId=null,L.state.editSnapshot=null;
-    
-    // Скрываем глобальное превью (рамку в углу экрана)
-    document.getElementById("globalImagePreview").style.display = 'none';
-}
+    $.classList.remove("open"),L.state.editingBlockId=null,L.state.editSnapshot=null;}
 
 function de(e){let t=L.getBlock(e);t&&(L.state.editingBlockId=e,L.state.editingItems=JSON.parse(JSON.stringify(t.items)),L.state.editingItems.forEach(e=>e.icon=r(e.icon)),L.state.selectedColor=t.bgColor,L.state.selectedIcon=null,L.state.editingItemIndex=null,L.state.editSnapshot=C(t),K.value=t.title||"",
 
 R.value="transparent"===t.bgColor?"#000000":t.bgColor,document.getElementById("blockImageUrl").value=t.imageUrl||"",F.value="",G.value="",
 
-q.innerHTML=h("plus")+" Добавить элемент",ie(),se(),le(),oe(),$.classList.add("open"));document.getElementById("globalPreviewFrame").textContent = t.imageUrl || "Путь не указан";
-document.getElementById("globalImagePreview").style.display = "block";}function re(){let e=L.getSelectedIds();if(!e.length)return;let t=L.state.blocks.filter(t=>e.includes(t.id)).map(C),n=L.state.connections.filter(t=>e.some(e=>t.from.blockId===e||t.to.blockId===e)).map(M);
+q.innerHTML=h("plus")+" Добавить элемент",ie(),se(),le(),oe(),$.classList.add("open"));}
+function re(){let e=L.getSelectedIds();if(!e.length)return;let t=L.state.blocks.filter(t=>e.includes(t.id)).map(C),n=L.state.connections.filter(t=>e.some(e=>t.from.blockId===e||t.to.blockId===e)).map(M);
 
 e.forEach(e=>{let t=document.getElementById(e);t&&(t.classList.add("block-deleting"),setTimeout(()=>t.remove(),200)),L.removeConnectionsForBlock(e)})
 
