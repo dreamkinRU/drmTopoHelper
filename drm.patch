@@ -1,139 +1,151 @@
 --- a/index.html
 +++ b/index.html
-@@ -3265,60 +3265,28 @@
- 
-   renderBlock(e){
-     let t=document.getElementById(e.id);
-     t&&t.remove();
-     t=document.createElement("div");
-     t.className="block"+(e.isLocked?"":" unlocked")+(L.state.selectedIds.has(e.id)?" selected":"");
-     t.id=e.id;
-     t.dataset.blockId=e.id;
-     t.style.cssText=`left:${e.x}px;top:${e.y}px;width:${e.width}px;height:${e.height}px;background-color:${"transparent"===e.bgColor?"transparent":e.bgColor}`;
-     // ... создание заголовка, контейнера элементов, ручек (оставлено без изменений) ...
+@@ -3265,7 +3265,7 @@
+     let c=document.createElement("div");c.className="lock-handle",c.dataset.action="lock",c.innerHTML=m(e.isLocked?"lock":"lock_open"),n.appendChild(c);
      this.renderBlockItems(t,e.items,e.bgColor);
--    L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)});
--    t.classList.add("block-entering");
-+    t.classList.add("block-entering");
-     P.appendChild(t);
-     t.addEventListener("animationend",function(){this.classList.remove("block-entering");this.style.animation=''},{once:!0});
--    L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)});
--    P.appendChild(t);
--    t.addEventListener("animationend",function(){this.classList.remove("block-entering")},{once:!0});
--    L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)});
--    P.appendChild(t);
--    L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)});
-+    this.updateZIndices();
+-    L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)}),t.classList.add("block-entering"),D.appendChild(t),t.addEventListener("animationend",function(){this.classList.remove("block-entering"),this.style.animation=""},{once:!0}),L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)}),D.appendChild(t),t.addEventListener("animationend",function(){this.classList.remove("block-entering")},{once:!0}),L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)}),D.appendChild(t),L.state.blocks.forEach((e,t)=>{let n=document.getElementById(e.id);n&&(n.style.zIndex=t+2)})}
++    t.classList.add("block-entering");D.appendChild(t);t.addEventListener("animationend",function(){this.classList.remove("block-entering");this.style.animation="";},{once:!0});this.updateZIndices();
    },
- 
    renderConnections:function(){
      let e=document.getElementById("guidesSvg");
+@@ -3272,10 +3272,90 @@
 -    e.querySelectorAll(".connection-line,.connection-hit,.waypoint-circle,.connection-label-bg,.connection-label,.label-drag-handle,.glow-line").forEach(e=>e.remove());
-+    // Мемоизация: удаляем только элементы, ID которых больше нет в данных
-+    if(!this._connElements) this._connElements = new Map();
-+    const existingIds = new Set(L.state.connections.map(c => c.id));
-+    for (const [id, el] of this._connElements) {
-+      if (!existingIds.has(id)) {
-+        el.group.remove();
++    if(!this._connElements) this._connElements=new Map;
++    const existingIds=new Set(L.state.connections.map(c=>c.id));
++    for(const [id,group] of this._connElements){
++      if(!existingIds.has(id)){
++        group.remove();
 +        this._connElements.delete(id);
 +      }
 +    }
      L.state.connections.forEach(t=>{
--      let n,o,i=x(t.from.blockId,t.from.itemIndex),s=x(t.to.blockId,t.to.itemIndex);
--      // ... генерация SVG-пути (сотни строк) ...
--      let M=document.createElementNS("http://www.w3.org/2000/svg","path");
--      M.setAttribute("d",k);
--      M.setAttribute("class","connection-line"+(L.state.selectedConnectionId===t.id?" selected":""));
--      M.setAttribute("stroke",v);
--      M.setAttribute("stroke-width",b);
--      "none"!==w&&M.setAttribute("stroke-dasharray",w);
--      "none"!==B&&M.setAttribute("marker-start",B);
--      "none"!==C&&M.setAttribute("marker-end",C);
--      e.appendChild(M);
--      // ... glow, hit, waypoints, label ...
-+      // Если соединение уже отрисовано, обновляем его атрибуты; иначе создаём
-+      if (this._connElements.has(t.id)) {
-+        const cached = this._connElements.get(t.id);
-+        // просто обновим путь и маркеры (логика обновления пропущена для краткости патча,
-+        // но полная реализация проверяет diff и меняет только необходимое)
-+        this._updateConnectionElement(cached, t);
-+      } else {
-+        const group = document.createElementNS("http://www.w3.org/2000/svg","g");
-+        // ... полное создание элементов для связи ...
-+        this._connElements.set(t.id, { group, conn: t });
-+        e.appendChild(group);
-+      }
++      let group=this._connElements.get(t.id);
++      if(group){group.remove();this._connElements.delete(t.id);}
++      group=document.createElementNS("http://www.w3.org/2000/svg","g");
+       let n,o,i=k(t.from.blockId,t.from.itemIndex),s=k(t.to.blockId,t.to.itemIndex);
+       if(!i||!s) return;
+       if(t.from.side&&void 0!==t.from.t&&null!==t.from.t) n=y(i,t.from.side,t.from.t);
+       else{let e={x:s.x+s.w/2,y:s.y+s.h/2};n=f(i,e.x,e.y)}
+       if(t.to.side&&void 0!==t.to.t&&null!==t.to.t) o=y(s,t.to.side,t.to.t);
+       else{let e={x:i.x+i.w/2,y:i.y+i.h/2};o=f(s,e.x,e.y)}
+       let l=[];
+       t.waypoints&&t.waypoints.forEach(e=>{
+         let t=L.getBlock(e.blockId);
+         t?l.push({x:t.x+e.offsetX,y:t.y+e.offsetY,style:e.style||{}}):l.push({x:e.offsetX,y:e.offsetY,style:e.style||{}})
+       });
+       let a=[n,...l,o];
+-      const c=a.map((e,t)=>0===t||t===a.length-1?{}:e.style||{}),d=a.length,r=new Array(d),m=(e,t)=>{const n=Math.hypot(e,t)||1;return{x:e/n,y:t/n}},h=n.side||"right",u={top:{x:0,y:-1},bottom:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+-      r[0]=u[h]||u.right;
+-      const p=u[o.side||"left"]||u.left;
+-      r[d-1]={x:-p.x,y:-p.y};
++      const c=a.map((e,t)=>0===t||t===a.length-1?{}:e.style||{}),d=a.length,r=new Array(d),m=(e,t)=>{const n=Math.hypot(e,t)||1;return{x:e/n,y:t/n}},h=n.side||"right",u={top:{x:0,y:-1},bottom:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};r[0]=u[h]||u.right;const p=u[o.side||"left"]||u.left;r[d-1]={x:-p.x,y:-p.y};
+       for(let e=1;e<d-1;e++){
+-        const t=a[e-1],n=a[e],o=a[e+1],i=m(n.x-t.x,n.y-t.y),s=m(o.x-n.x,o.y-n.y),l=c[e]||{},d=l.skew||0,h=l.angleAdjust||0,u=(1+d)*i.x+(1-d)*s.x,p=(1+d)*i.y+(1-d)*s.y,g=Math.hypot(u,p)||1;
++        const t=a[e-1],n=a[e],o=a[e+1],i=m(n.x-t.x,n.y-t.y),s=m(o.x-n.x,o.y-n.y),l=c[e]||{},d=l.skew||0,h=l.angleAdjust||0,u=(1+d)*i.x+(1-d)*s.x,p=(1+d)*i.y+(1-d)*s.y;const g=Math.hypot(u,p)||1;
+         let f={x:u/g,y:p/g};
+-        if(0!==h){const e=h*Math.PI/180,t=Math.cos(e),n=Math.sin(e);f={x:f.x*t-f.y*n,y:f.x*n+f.y*t}}
++        if(0!==h){const e=h*Math.PI/180,t=Math.cos(e),n=Math.sin(e);f={x:f.x*t-f.y*n,y:f.x*n+f.y*t};}
+         r[e]=f;
+       }
+       const g=[];
+       for(let e=0;e<d-1;e++){
+         const t=a[e],n=a[e+1],o=Math.hypot(n.x-t.x,n.y-t.y),i=Math.max(80,Math.min(250,.5*o)),s=1-(e>0&&e<d-1?void 0!==c[e].tension?c[e].tension:.5:0),l=1-(e+1>0&&e+1<d-1?void 0!==c[e+1].tension?c[e+1].tension:.5:0),m=t.x+r[e].x*i*s,h=t.y+r[e].y*i*s,u=n.x-r[e+1].x*i*l,p=n.y-r[e+1].y*i*l;
+         0===e?g.push(`M ${t.x} ${t.y} C ${m} ${h} ${u} ${p} ${n.x} ${n.y}`):g.push(`C ${m} ${h} ${u} ${p} ${n.x} ${n.y}`);
+       }
+       const v=g.join(" ");
+-      let x=t.stroke||"#e8a030",b=t.strokeWidth||2,I=t.dashArray&&"none"!==t.dashArray?t.dashArray:"none",w=t.startMarker||"none",E=t.endMarker||"triangle",B="none"!==w?`url(#marker-${w})`:"none",C="none"!==E?`url(#marker-${E})`:"none",M=document.createElementNS("http://www.w3.org/2000/svg","path");
+-      if(M.setAttribute("d",v),M.setAttribute("class","connection-line"+(L.state.selectedConnectionId===t.id?" selected":"")),M.setAttribute("stroke",x),M.setAttribute("stroke-width",b),"none"!==I&&M.setAttribute("stroke-dasharray",I),"none"!==B&&M.setAttribute("marker-start",B),"none"!==C&&M.setAttribute("marker-end",C),e.appendChild(M),L.state.selectedConnectionId===t.id){
+-        let t=document.createElementNS("http://www.w3.org/2000/svg","path");
+-        t.setAttribute("d",v),t.setAttribute("class","glow-line"),t.setAttribute("stroke","#fff"),t.setAttribute("stroke-width",b+2),t.setAttribute("filter","url(#neonGlow)"),t.style.animation="neonPulse 2s ease-in-out infinite alternate","none"!==I&&t.setAttribute("stroke-dasharray",I),e.appendChild(t);
++      let x=t.stroke||"#e8a030",b=t.strokeWidth||2,I=t.dashArray&&"none"!==t.dashArray?t.dashArray:"none",w=t.startMarker||"none",E=t.endMarker||"triangle",B="none"!==w?`url(#marker-${w})`:"none",C="none"!==E?`url(#marker-${E})`:"none",
++      M=document.createElementNS("http://www.w3.org/2000/svg","path");
++      M.setAttribute("d",v),M.setAttribute("class","connection-line"+(L.state.selectedConnectionId===t.id?" selected":"")),M.setAttribute("stroke",x),M.setAttribute("stroke-width",b),"none"!==I&&M.setAttribute("stroke-dasharray",I),"none"!==B&&M.setAttribute("marker-start",B),"none"!==C&&M.setAttribute("marker-end",C),group.appendChild(M);
++      if(L.state.selectedConnectionId===t.id){
++        let t=document.createElementNS("http://www.w3.org/2000/svg","path");
++        t.setAttribute("d",v),t.setAttribute("class","glow-line"),t.setAttribute("stroke","#fff"),t.setAttribute("stroke-width",b+2),t.setAttribute("filter","url(#neonGlow)"),t.style.animation="neonPulse 2s ease-in-out infinite alternate","none"!==I&&t.setAttribute("stroke-dasharray",I),group.appendChild(t);
+       }
+-      let S=document.createElementNS("http://www.w3.org/2000/svg","path");
+-      if(S.setAttribute("d",v),S.setAttribute("class","connection-hit"),S.dataset.connId=t.id,e.appendChild(S),l.forEach((n,o)=>{
++      S=document.createElementNS("http://www.w3.org/2000/svg","path");
++      S.setAttribute("d",v),S.setAttribute("class","connection-hit"),S.dataset.connId=t.id,group.appendChild(S);
++      l.forEach((n,o)=>{
+         if(!(t.id===L.state.selectedConnectionId||L.state.selectedWaypoint&&L.state.selectedWaypoint.connId===t.id)) return;
+         const i=n.style||{},s=i.color||"#e8a030",l=i.shape||"circle",a={small:4,medium:6,large:8}[i.size]||6,c=L.state.selectedWaypoint&&L.state.selectedWaypoint.connId===t.id&&L.state.selectedWaypoint.index===o;
+         let d;
+         if("circle"===l)d=document.createElementNS("http://www.w3.org/2000/svg","circle"),d.setAttribute("cx",n.x),d.setAttribute("cy",n.y),d.setAttribute("r",a);
+         else if("square"===l)d=document.createElementNS("http://www.w3.org/2000/svg","rect"),d.setAttribute("x",n.x-a),d.setAttribute("y",n.y-a),d.setAttribute("width",2*a),d.setAttribute("height",2*a),d.setAttribute("rx",2);
+         else if("diamond"===l){d=document.createElementNS("http://www.w3.org/2000/svg","polygon");const e=`${n.x},${n.y-a} ${n.x+a},${n.y} ${n.x},${n.y+a} ${n.x-a},${n.y}`;d.setAttribute("points",e)}
+-        d.style.fill=s,d.setAttribute("stroke",c?"#fff":"var(--surface)"),d.setAttribute("stroke-width","2"),d.setAttribute("class","waypoint-circle"+(c?" selected":"")),d.dataset.connId=t.id,d.dataset.index=o,d.style.cursor="pointer",d.style.pointerEvents="auto",e.appendChild(d);
++        d.style.fill=s,d.setAttribute("stroke",c?"#fff":"var(--surface)"),d.setAttribute("stroke-width","2"),d.setAttribute("class","waypoint-circle"+(c?" selected":"")),d.dataset.connId=t.id,d.dataset.index=o,d.style.cursor="pointer",d.style.pointerEvents="auto",group.appendChild(d);
+       }),t.label&&t.label.trim()){
+         let i,s=l.length>0?{x:(n.x+l[0].x)/2,y:(n.y+l[0].y)/2}:{x:(n.x+o.x)/2,y:(n.y+o.y)/2},a=t.labelAngle||0,c=t.labelOffsetX||0,d=t.labelOffsetY||0,r={x:s.x+c,y:s.y+d},m=document.createElementNS("http://www.w3.org/2000/svg","text");
+         m.setAttribute("x",r.x),m.setAttribute("y",r.y),m.setAttribute("transform",`rotate(${a}, ${r.x}, ${r.y})`),m.setAttribute("class","connection-label"),m.textContent=t.label;
+-        try{e.appendChild(m),i=m.getBBox(),e.removeChild(m)}catch(e){i={width:0,height:0}}
++        try{group.appendChild(m),i=m.getBBox(),group.removeChild(m)}catch(e){i={width:0,height:0}}
+         if(i.width>0){
+           let t=document.createElementNS("http://www.w3.org/2000/svg","rect"),n=4;
+-          t.setAttribute("x",r.x-i.width/2-n),t.setAttribute("y",r.y-i.height/2-n),t.setAttribute("width",i.width+2*n),t.setAttribute("height",i.height+2*n),t.setAttribute("transform",`rotate(${a}, ${r.x}, ${r.y})`),t.setAttribute("class","connection-label-bg"),e.appendChild(t);
++          t.setAttribute("x",r.x-i.width/2-n),t.setAttribute("y",r.y-i.height/2-n),t.setAttribute("width",i.width+2*n),t.setAttribute("height",i.height+2*n),t.setAttribute("transform",`rotate(${a}, ${r.x}, ${r.y})`),t.setAttribute("class","connection-label-bg"),group.appendChild(t);
+         }
+-        e.appendChild(m);
++        group.appendChild(m);
+         let h=document.createElementNS("http://www.w3.org/2000/svg","rect");
+-        h.setAttribute("x",r.x-20),h.setAttribute("y",r.y-10),h.setAttribute("width",40),h.setAttribute("height",20),h.setAttribute("class","label-drag-handle"),h.dataset.connId=t.id,e.appendChild(h);
++        h.setAttribute("x",r.x-20),h.setAttribute("y",r.y-10),h.setAttribute("width",40),h.setAttribute("height",20),h.setAttribute("class","label-drag-handle"),h.dataset.connId=t.id,group.appendChild(h);
+       }
++      e.appendChild(group);
++      this._connElements.set(t.id,group);
      });
-+    // Удаляем элементы, которые больше не нужны, уже сделано выше
    },
-@@ -3880,6 +3844,37 @@
+@@ -3880,6 +3880,8 @@
    document.addEventListener("keydown",e=>{
-     if($.classList.contains("open")||Q.classList.contains("open")) return void("Escape"===e.key&&ce());
-     // ... существующие шорткаты ...
-+    // Открытие подсказки по Ctrl+/ или ?
-+    if ((e.ctrlKey && e.code === "Slash") || (e.key === "?" && !e.ctrlKey && !e.metaKey)) {
-+      e.preventDefault();
-+      document.getElementById("shortcutsModal").classList.add("open");
-+      return;
-+    }
-+    if (e.key === "Escape") {
-+      document.getElementById("shortcutsModal").classList.remove("open");
-+    }
-   });
+     if(_.classList.contains("open")||te.classList.contains("open")) return void("Escape"===e.key&&re());
++    if((e.ctrlKey&&e.code==="Slash")||(e.key==="?"&&!e.ctrlKey&&!e.metaKey)){e.preventDefault();document.getElementById("shortcutsModal").classList.toggle("open");return;}
++    if(e.key==="Escape"){const modal=document.getElementById("shortcutsModal");if(modal&&modal.classList.contains("open")){modal.classList.remove("open");return;}}
  
-+  // Кнопка "Помощь" в тулбаре
-+  const helpBtn = document.createElement("button");
-+  helpBtn.className = "btn";
-+  helpBtn.id = "btnHelp";
-+  helpBtn.innerHTML = '<span class="drm-icon-slot" data-icon="circle_info"></span><span class="btn-text">Помощь</span>';
-+  helpBtn.title = "Горячие клавиши (Ctrl+/)";
-+  helpBtn.addEventListener("click", () => {
-+    document.getElementById("shortcutsModal").classList.toggle("open");
-+  });
-+  document.querySelector(".toolbar-info").before(helpBtn);
+     let n=L.state.selectedIds.size>0,o=null!==L.state.selectedConnectionId,i=null!==L.state.selectedWaypoint,s="INPUT"===document.activeElement.tagName||"TEXTAREA"===document.activeElement.tagName||"SELECT"===document.activeElement.tagName;
+     if(e.ctrlKey&&"KeyZ"===e.code&&!e.shiftKey) return e.preventDefault(),void(B.undo()&&b("↩ Отменено","info"));
+@@ -4195,4 +4197,35 @@
+     document.getElementById("globalPreviewFrame").textContent = e.target.value.trim() || "Путь не указан";
+ });    
 +
-+  // Модальное окно с подсказками
-+  const shortcutsModal = document.createElement("div");
-+  shortcutsModal.id = "shortcutsModal";
-+  shortcutsModal.className = "modal-overlay";
-+  shortcutsModal.innerHTML = `
-+    <div class="modal" style="max-width:600px">
-+      <h3>Горячие клавиши</h3>
-+      <ul style="list-style:none;padding:0;font-size:14px">
-+        <li><kbd>Ctrl+Z</kbd> Отменить</li>
-+        <li><kbd>Ctrl+Y</kbd> Повторить</li>
-+        <li><kbd>Ctrl+D</kbd> Дублировать</li>
-+        <li><kbd>Delete</kbd> Удалить выбранные блоки/связи</li>
-+        <li><kbd>Shift+клик</kbd> Множественный выбор</li>
-+        <li><kbd>Alt+перетаскивание</kbd> Перемещение заблокированного блока</li>
-+        <li><kbd>Стрелки</kbd> Перемещение выделенных блоков на 10/25.6 px</li>
-+        <li><kbd>Ctrl+A</kbd> Выделить все блоки</li>
-+        <li><kbd>?</kbd> или <kbd>Ctrl+/</kbd> Это окно</li>
-+      </ul>
-+      <div class="error-actions" style="margin-top:16px">
-+        <button class="btn btn-accent" id="closeShortcuts">Закрыть</button>
-+      </div>
-+    </div>
-+  `;
-+  document.body.appendChild(shortcutsModal);
-+  document.getElementById("closeShortcuts").addEventListener("click", () => {
-+    shortcutsModal.classList.remove("open");
-+  });
-+  shortcutsModal.addEventListener("click", (e) => {
-+    if (e.target === shortcutsModal) shortcutsModal.classList.remove("open");
-+  });
++// ======== Панель горячих клавиш ========
++const helpBtn=document.createElement("button");
++helpBtn.className="btn";
++helpBtn.id="btnHelp";
++helpBtn.innerHTML=m("circle_info")+'<span class="btn-text">Помощь</span>';
++helpBtn.title="Горячие клавиши (Ctrl+/)";
++helpBtn.addEventListener("click",()=>{document.getElementById("shortcutsModal").classList.toggle("open");});
++document.querySelector(".toolbar-info").before(helpBtn);
++
++const shortcutsModal=document.createElement("div");
++shortcutsModal.id="shortcutsModal";
++shortcutsModal.className="modal-overlay";
++shortcutsModal.innerHTML=`
++<div class="modal" style="max-width:600px">
++<h3 style="margin-bottom:16px">Горячие клавиши</h3>
++<ul style="list-style:none;padding:0;font-size:14px;color:var(--fg);line-height:2">
++<li><kbd style="background:var(--bg);border:1px solid var(--border);padding:2px 6px;border-radius:4px">Ctrl+Z</kbd> Отменить</li>
++<li><kbd>Ctrl+Y</kbd> Повторить</li>
++<li><kbd>Ctrl+D</kbd> Дублировать</li>
++<li><kbd>Delete</kbd> Удалить выбранные блоки/связи</li>
++<li><kbd>Shift+клик</kbd> Множественный выбор</li>
++<li><kbd>Alt+перетаскивание</kbd> Перемещение заблокированного блока</li>
++<li><kbd>Стрелки</kbd> Перемещение выделенных блоков</li>
++<li><kbd>Ctrl+A</kbd> Выделить все блоки</li>
++<li><kbd>?</kbd> или <kbd>Ctrl+/</kbd> Это окно</li>
++</ul>
++<div class="error-actions" style="margin-top:20px">
++<button class="btn btn-accent" id="closeShortcuts">Закрыть</button>
++</div>
++</div>`;
++document.body.appendChild(shortcutsModal);
++document.getElementById("closeShortcuts").addEventListener("click",()=>{shortcutsModal.classList.remove("open");});
++shortcutsModal.addEventListener("click",e=>{if(e.target===shortcutsModal) shortcutsModal.classList.remove("open");});
  </script>
- };
-@@ -4070,30 +4105,46 @@
- 
- function ge(e,t){
-   try{
-     if(!e.blocks||!Array.isArray(e.blocks)) throw new Error("Неверный формат файла");
-     // ... очистка ...
+@@ -4200,7 +4233,7 @@
      e.blocks.forEach(e=>{
--      let t={id:e.id,x:e.x,y:e.y,width:e.width||180,height:e.height||140,bgColor:e.bgColor||"#1e1e22",isLocked:void 0!==e.isLocked&&e.isLocked,
--        title:e.title||"",items:(e.items||[]).map(e=>({icon:r(e.icon),label:e.label,x:e.x||0,y:e.y||0,invNum:e.invNum||""})),imageUrl:e.imageUrl||""};
-+      // Нормализация: дополняем отсутствующие поля
+-      let t={id:e.id,x:e.x,y:e.y,width:e.width||180,height:e.height||140,bgColor:e.bgColor||"#1e1e22",isLocked:void 0!==e.isLocked&&e.isLocked,title:e.title||"",items:(e.items||[]).map(e=>({icon:r(e.icon),label:e.label,x:e.x||0,y:e.y||0,invNum:e.invNum||""})),imageUrl:e.imageUrl||""};
 +      let t={
 +        id:e.id||"block_"+ ++L.state.blockIdCounter,
 +        x:e.x||0,
@@ -141,7 +153,7 @@
 +        width:e.width||180,
 +        height:e.height||140,
 +        bgColor:e.bgColor||"#1e1e22",
-+        isLocked:void 0!==e.isLocked&&e.isLocked,
++        isLocked:void 0!==e.isLocked?e.isLocked:false,
 +        title:e.title||"",
 +        items:(e.items||[]).map(e=>({
 +          icon:r(e.icon||"windows"),
@@ -153,30 +165,15 @@
 +        imageUrl:e.imageUrl||""
 +      };
        L.state.blocks.push(t);
-       A.renderBlock(t);
-     });
-     e.connections&&Array.isArray(e.connections)&&e.connections.forEach(e=>{
--      if(!e.from||!e.to) return;
-+      if(!e.from||!e.to) return;  // пропускаем неполные связи
-       if(!L.getBlock(e.from.blockId)||!L.getBlock(e.to.blockId)) return;
+@@ -4214,8 +4247,8 @@
        let t={
          id:e.id||"conn_"+ ++L.state.connectionIdCounter,
 -        from:{...e.from},
 -        to:{...e.to},
 -        waypoints:(e.waypoints||[]).map(e=>({blockId:e.blockId,offsetX:e.offsetX,offsetY:e.offsetY,style:e.style||{}})),
-+        from:{...e.from, side: e.from.side||"right", t: e.from.t||0.5},
-+        to:{...e.to, side: e.to.side||"left", t: e.to.t||0.5},
-+        waypoints:(e.waypoints||[]).map(wp=>({blockId:wp.blockId, offsetX:wp.offsetX||0, offsetY:wp.offsetY||0, style:wp.style||{}})),
++        from:{blockId:e.from.blockId,itemIndex:e.from.itemIndex!=null?e.from.itemIndex:null,side:e.from.side||"right",t:e.from.t!=null?e.from.t:.5},
++        to:{blockId:e.to.blockId,itemIndex:e.to.itemIndex!=null?e.to.itemIndex:null,side:e.to.side||"left",t:e.to.t!=null?e.to.t:.5},
++        waypoints:(e.waypoints||[]).map(e=>({blockId:e.blockId,offsetX:e.offsetX||0,offsetY:e.offsetY||0,style:e.style||{}})),
          stroke:e.stroke||"#e8a030",
          strokeWidth:e.strokeWidth||2,
          dashArray:e.dashArray||"none",
-         startMarker:e.startMarker||"none",
-         endMarker:e.endMarker||"triangle",
-         label:e.label||"",
-         labelAngle:e.labelAngle||0,
--        labelOffsetX:e.labelOffsetX||0,
-+        labelOffsetX:e.labelOffsetX||0,
-         labelOffsetY:e.labelOffsetY||0
-       };
-       L.state.connections.push(t);
-     });
