@@ -501,9 +501,9 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     </div>
   </div>
     <div class="section" id="wpSecCurve">
-    <div class="section-header"><span>Позиция</span><span class="toggle-icon">▼</span></div>
+    <div class="section-header"><span>Настройки</span><span class="toggle-icon">▼</span></div>
     <div class="section-content">
-      <label>Позиция (<span id="wpTVal">0.5</span>)</label><input type="range" id="wpT" min="0" max="1" step="0.01" value="0.5">
+      <label>Позиция (<span id="wpTVal">50%</span>)</label><input type="range" id="wpT" min="0" max="100" step="1" value="50">
       <label>Притяжение (<span id="wpTensionVal">0.5</span>)</label><input type="range" id="wpTension" min="0" max="1" step="0.1" value="0.5">
       <label>Асимметрия (<span id="wpSkewVal">0</span>)</label><input type="range" id="wpSkew" min="-1" max="1" step="0.1" value="0">
       <label>Доворот касат. (<span id="wpAngleVal">0</span>°)</label><input type="range" id="wpAngle" min="-60" max="60" value="0">
@@ -1514,12 +1514,13 @@ var SV = "http://www.w3.org/2000/svg";
         if (t.to.side && void 0 !== t.to.t && null !== t.to.t) o = y(s, t.to.side, t.to.t);
         else { let e = { x: i.x + i.w / 2, y: i.y + i.h / 2 }; o = f(s, e.x, e.y) }
 
-        // Собираем массив всех абсолютных точек пути
-        let waypoints = t.waypoints || [], l = [];
+        // Формируем временный массив l с абсолютными координатами (относительные пока null)
+        let waypoints = t.waypoints || [], l = [], relIndices = [];
         let allAbs = [n];
-        waypoints.forEach(wp => {
+        waypoints.forEach((wp, idx) => {
             if (wp.t !== undefined) {
-                allAbs.push(null); // будет вычислено
+                allAbs.push(null);
+                relIndices.push({ idx, pos: allAbs.length - 1 });
             } else {
                 let ax = wp.offsetX, ay = wp.offsetY;
                 if (wp.blockId) {
@@ -1530,40 +1531,10 @@ var SV = "http://www.w3.org/2000/svg";
             }
         });
         allAbs.push(o);
+        l = allAbs.slice(1, -1); // временный l (относительные пока null)
 
-        // Вычисляем позиции для относительных точек с t
-        let cleanPts = allAbs.filter(p => p !== null);
-        let totalLen = 0, segLens = [];
-        for (let j = 0; j < cleanPts.length - 1; j++) {
-            let len = Math.hypot(cleanPts[j+1].x - cleanPts[j].x, cleanPts[j+1].y - cleanPts[j].y);
-            segLens.push(len);
-            totalLen += len;
-        }
-        let wpIdx = 0;
-        for (let i = 0; i < allAbs.length; i++) {
-            if (allAbs[i] === null) {
-                let wp = waypoints[wpIdx];
-                let targetDist = wp.t * totalLen;
-                let cum = 0, segIdx = 0, localT = 0;
-                for (let j = 0; j < segLens.length; j++) {
-                    if (cum + segLens[j] >= targetDist || j === segLens.length - 1) {
-                        segIdx = j;
-                        localT = segLens[j] > 0 ? (targetDist - cum) / segLens[j] : 0;
-                        break;
-                    }
-                    cum += segLens[j];
-                }
-                let p1 = cleanPts[segIdx], p2 = cleanPts[segIdx + 1];
-                let ix = p1.x + (p2.x - p1.x) * localT;
-                let iy = p1.y + (p2.y - p1.y) * localT;
-                allAbs[i] = { x: ix, y: iy, style: wp.style || {} };
-                wpIdx++;
-            }
-        }
-        l = allAbs.slice(1, -1);
-
-        // Построение кривой (без изменений)
-        let a = [n, ...l, o];
+        // Строим кривую (без учёта относительных точек – они не влияют на форму, т.к. их нет в l)
+        let a = [n, ...l.filter(p => p !== null), o];
         const c = a.map((e, t) => 0 === t || t === a.length - 1 ? {} : e.style || {}),
             d = a.length, r = new Array(d),
             h = (e, t) => { const n = Math.hypot(e, t) || 1; return { x: e / n, y: t / n } },
@@ -1597,6 +1568,33 @@ var SV = "http://www.w3.org/2000/svg";
             0 === e ? g.push(`M ${t.x} ${t.y} C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`) : g.push(`C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`)
         }
         const k = g.join(" ");
+
+        // Вычисляем реальные позиции относительных точек с помощью временного path
+        if (relIndices.length > 0) {
+            let tempPath = document.createElementNS(SV, "path");
+            tempPath.setAttribute("d", k);
+            let totalLen = tempPath.getTotalLength();
+            relIndices.forEach(r => {
+                let wp = waypoints[r.idx];
+                let targetDist = wp.t * totalLen;
+                let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+                // обновляем l на реальные координаты
+                let absObj = { x: pt.x, y: pt.y, style: wp.style || {} };
+                // заменяем null в l (индекс в l = r.pos - 1, т.к. allAbs начиналась с n)
+                let idxInL = r.pos - 1;
+                if (idxInL >= 0 && idxInL < l.length) {
+                    l[idxInL] = absObj;
+                } else {
+                    // если null был не в l, а в allAbs, нужно аккуратно вставить, но проще пересобрать l
+                }
+            });
+            // убираем возможные оставшиеся null из l (на всякий случай)
+            l = l.filter(p => p !== null);
+        } else {
+            l = l.filter(p => p !== null);
+        }
+
+        // Отрисовка SVG (без изменений)
         let v = t.stroke || "#e8a030", b = t.strokeWidth || 2,
             w = t.dashArray && "none" !== t.dashArray ? t.dashArray : "none",
             I = t.startMarker || "none", E = t.endMarker || "triangle",
@@ -1781,135 +1779,233 @@ var SV = "http://www.w3.org/2000/svg";
 
 setupWaypointInteraction: function() {
     const e = document.getElementById("guidesSvg");
-    e.addEventListener("pointerdown", e => {
-        let t = e.target.closest(".waypoint-circle");
-        if (!t) return;
-        e.stopPropagation(); e.preventDefault();
-        let n = t.dataset.connId, o = parseInt(t.dataset.index),
-            i = L.state.connections.find(c => c.id === n);
-        if (!i || !i.waypoints || !i.waypoints[o]) return;
-        L.selectWaypoint(n, o);
-        let s = i.waypoints[o];
 
-        // Если у waypoint есть t, делаем его абсолютным прямо на месте, не трогая состояние
-        if (s.t !== undefined) {
-            // Вычисляем абсолютную позицию на основе текущих портов
-            let from = x(i.from.blockId, i.from.itemIndex),
-                to = x(i.to.blockId, i.to.itemIndex);
-            if (from && to) {
-                let startPt, endPt;
-                if (i.from.side != null) startPt = y(from, i.from.side, i.from.t);
-                else { let e = { x: to.x + to.w / 2, y: to.y + to.h / 2 }; startPt = f(from, e.x, e.y) }
-                if (i.to.side != null) endPt = y(to, i.to.side, i.to.t);
-                else { let e = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; endPt = f(to, e.x, e.y) }
+    // Вспомогательная функция для вычисления t (0..1) по абсолютным координатам на связи
+    const getTOnConnection = (conn, absX, absY) => {
+        let from = x(conn.from.blockId, conn.from.itemIndex),
+            to = x(conn.to.blockId, conn.to.itemIndex);
+        if (!from || !to) return 0.5;
+        let n, o;
+        if (conn.from.side != null) n = y(from, conn.from.side, conn.from.t);
+        else { let e = { x: to.x + to.w / 2, y: to.y + to.h / 2 }; n = f(from, e.x, e.y) }
+        if (conn.to.side != null) o = y(to, conn.to.side, conn.to.t);
+        else { let e = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; o = f(to, e.x, e.y) }
 
-                // Строим массив абсолютных точек, исключая текущую
-                let pts = [startPt];
-                i.waypoints.forEach((wp, idx) => {
-                    if (idx === o) { pts.push(null); return; }
-                    let ax = wp.offsetX, ay = wp.offsetY;
-                    if (wp.blockId) {
-                        let b = L.getBlock(wp.blockId);
-                        if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
-                    }
-                    pts.push({x: ax, y: ay});
-                });
-                pts.push(endPt);
-                let clean = pts.filter(p => p !== null);
-                let totalLen = 0, segLens = [];
-                for (let j = 0; j < clean.length - 1; j++) {
-                    let len = Math.hypot(clean[j+1].x - clean[j].x, clean[j+1].y - clean[j].y);
-                    segLens.push(len); totalLen += len;
-                }
-                let targetDist = s.t * totalLen, cum = 0, segIdx = 0, localT = 0;
-                for (let j = 0; j < segLens.length; j++) {
-                    if (cum + segLens[j] >= targetDist || j === segLens.length - 1) {
-                        segIdx = j; localT = segLens[j] > 0 ? (targetDist - cum) / segLens[j] : 0; break;
-                    }
-                    cum += segLens[j];
-                }
-                let p1 = clean[segIdx], p2 = clean[segIdx + 1];
-                s.offsetX = p1.x + (p2.x - p1.x) * localT;
-                s.offsetY = p1.y + (p2.y - p1.y) * localT;
-                delete s.t;   // мутируем прямо, без изменения состояния
-                delete s.snapToLine;
-                // Перерисовываем, чтобы точка отобразилась как абсолютная
-                A.renderConnections();
+        // Строим временную кривую
+        let waypoints = conn.waypoints || [], allAbs = [n];
+        waypoints.forEach(wp => allAbs.push(null));
+        allAbs.push(o);
+        let clean = allAbs.filter(p => p !== null);
+        let a = [n, ...clean.slice(0, -1), o];
+        const c = a.map((e, t) => 0 === t || t === a.length - 1 ? {} : e.style || {}),
+            d = a.length, r = new Array(d),
+            h = (e, t) => { const n = Math.hypot(e, t) || 1; return { x: e / n, y: t / n } },
+            m = n.side || "right",
+            u = { top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+        r[0] = u[m] || u.right;
+        const p = u[o.side || "left"] || u.left;
+        r[d - 1] = { x: -p.x, y: -p.y };
+        for (let e = 1; e < d - 1; e++) {
+            const t = a[e - 1], n = a[e], o = a[e + 1],
+                i = h(n.x - t.x, n.y - t.y), s = h(o.x - n.x, o.y - n.y),
+                l = c[e] || {}, d = l.skew || 0, m = l.angleAdjust || 0,
+                u = (1 + d) * i.x + (1 - d) * s.x, p = (1 + d) * i.y + (1 - d) * s.y,
+                g = Math.hypot(u, p) || 1;
+            let f = { x: u / g, y: p / g };
+            if (0 !== m) {
+                const e = m * Math.PI / 180, t = Math.cos(e), n = Math.sin(e);
+                f = { x: f.x * t - f.y * n, y: f.x * n + f.y * t }
+            }
+            r[e] = f
+        }
+        const g = [];
+        for (let e = 0; e < d - 1; e++) {
+            const t = a[e], n = a[e + 1],
+                o = Math.hypot(n.x - t.x, n.y - t.y),
+                i = Math.max(80, Math.min(250, .5 * o)),
+                s = 1 - (e > 0 && e < d - 1 ? void 0 !== c[e].tension ? c[e].tension : .5 : 0),
+                l = 1 - (e + 1 > 0 && e + 1 < d - 1 ? void 0 !== c[e + 1].tension ? c[e + 1].tension : .5 : 0),
+                h = t.x + r[e].x * i * s, m = t.y + r[e].y * i * s,
+                u = n.x - r[e + 1].x * i * l, p = n.y - r[e + 1].y * i * l;
+            0 === e ? g.push(`M ${t.x} ${t.y} C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`) : g.push(`C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`)
+        }
+        const k = g.join(" ");
+        let tempPath = document.createElementNS(SV, "path");
+        tempPath.setAttribute("d", k);
+        let totalLen = tempPath.getTotalLength();
+        if (totalLen === 0) return 0.5;
+        let bestT = 0.5, minDist = Infinity;
+        let steps = Math.ceil(totalLen / 2);
+        for (let i = 0; i <= steps; i++) {
+            let dist = i * totalLen / steps;
+            let pt = tempPath.getPointAtLength(Math.min(dist, totalLen));
+            let dx = pt.x - absX, dy = pt.y - absY;
+            let d2 = dx*dx + dy*dy;
+            if (d2 < minDist) {
+                minDist = d2;
+                bestT = dist / totalLen;
             }
         }
+        return bestT;
+    };
 
-        // Запрещаем перетаскивание только если точка привязана к несуществующему блоку
-        if (s.blockId != null && !L.getBlock(s.blockId)) return;
+    e.addEventListener("pointerdown", ev => {
+        let t = ev.target.closest(".waypoint-circle");
+        if (!t) return;
+        ev.stopPropagation(); ev.preventDefault();
+        let connId = t.dataset.connId,
+            idx = parseInt(t.dataset.index),
+            conn = L.state.connections.find(c => c.id === connId);
+        if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
+        L.selectWaypoint(connId, idx);
+        let wp = conn.waypoints[idx];
 
-        let l = e.clientX, a = e.clientY,
-            c = s.offsetX, d = s.offsetY, r = !0,
-            h = e => {
-                if (!r) return;
-                let t = (e.clientX - l) / L.state.zoom,
-                    i = (e.clientY - a) / L.state.zoom;
-                s.offsetX = c + t; s.offsetY = d + i;
-                A.renderConnections();
-                if (L.state.selectedConnectionId === n) {
-                    let e = L.state.connections.find(e => e.id === n);
-                    e && N(e)
+        // Режим перетаскивания для относительных точек (с t)
+        if (wp.t !== undefined) {
+            let startT = wp.t;
+            let moveHandler = me => {
+                let rect = P.getBoundingClientRect();
+                let curX = (me.clientX - rect.left) / L.state.zoom;
+                let curY = (me.clientY - rect.top) / L.state.zoom;
+                let newT = getTOnConnection(conn, curX, curY);
+                // Берём актуальный waypoint из соединения
+                let curConn = L.state.connections.find(c => c.id === connId);
+                if (!curConn || !curConn.waypoints) return;
+                let curWp = curConn.waypoints[idx];
+                if (curWp) {
+                    curWp.t = newT;
+                    // Обновляем ползунок позиции сразу
+                    document.getElementById("wpT").value = Math.round(newT * 100);
+                    document.getElementById("wpTVal").textContent = Math.round(newT * 100) + '%';
+                    A.renderConnections();
+                    Y(curWp, connId, idx);
                 }
-                if (L.state.selectedWaypoint && L.state.selectedWaypoint.connId === n && L.state.selectedWaypoint.index === o)
-                    Y(s, n, o)
-            },
-            m = e => {
-                r = !1;
-                document.removeEventListener("pointermove", h);
-                document.removeEventListener("pointerup", m);
-                if (s.offsetX !== c || s.offsetY !== d) {
-                    let e = s.offsetX, t = s.offsetY;
+            };
+
+            let upHandler = me => {
+                document.removeEventListener("pointermove", moveHandler);
+                document.removeEventListener("pointerup", upHandler);
+                let curConn = L.state.connections.find(c => c.id === connId);
+                if (curConn && curConn.waypoints) {
+                    let finalWp = curConn.waypoints[idx];
+                    if (finalWp && finalWp.t !== startT) {
+                        let oldT = startT, newT = finalWp.t;
+                        B.push({
+                            type: "wp-t-change",
+                            connId, idx,
+                            oldT, newT,
+                            undo: () => {
+                                let c = L.state.connections.find(c => c.id === connId);
+                                if (c && c.waypoints[idx]) c.waypoints[idx].t = oldT;
+                                E.emit("state:changed");
+                            },
+                            redo: () => {
+                                let c = L.state.connections.find(c => c.id === connId);
+                                if (c && c.waypoints[idx]) c.waypoints[idx].t = newT;
+                                E.emit("state:changed");
+                            }
+                        });
+                    }
+                    Y(finalWp, connId, idx);
+                }
+                E.emit("state:changed");
+            };
+
+            document.addEventListener("pointermove", moveHandler);
+            document.addEventListener("pointerup", upHandler);
+            return;
+        }
+
+        // Обычное перетаскивание для абсолютных точек
+        let startClientX = ev.clientX, startClientY = ev.clientY,
+            origOffX = wp.offsetX, origOffY = wp.offsetY,
+            active = true;
+
+        let moveHandler = me => {
+            if (!active) return;
+            let dx = (me.clientX - startClientX) / L.state.zoom;
+            let dy = (me.clientY - startClientY) / L.state.zoom;
+            // Обновляем актуальный waypoint
+            let curConn = L.state.connections.find(c => c.id === connId);
+            if (!curConn || !curConn.waypoints) return;
+            let curWp = curConn.waypoints[idx];
+            if (curWp) {
+                curWp.offsetX = origOffX + dx;
+                curWp.offsetY = origOffY + dy;
+                A.renderConnections();
+                if (L.state.selectedConnectionId === connId) {
+                    let c = L.state.connections.find(c => c.id === connId);
+                    c && N(c);
+                }
+                if (L.state.selectedWaypoint && L.state.selectedWaypoint.connId === connId && L.state.selectedWaypoint.index === idx)
+                    Y(curWp, connId, idx);
+            }
+        };
+
+        let upHandler = me => {
+            active = false;
+            document.removeEventListener("pointermove", moveHandler);
+            document.removeEventListener("pointerup", upHandler);
+            let curConn = L.state.connections.find(c => c.id === connId);
+            if (curConn && curConn.waypoints) {
+                let finalWp = curConn.waypoints[idx];
+                if (finalWp && (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY)) {
+                    let finalX = finalWp.offsetX, finalY = finalWp.offsetY;
                     B.push({
-                        type: "wp-move", connId: n, idx: o,
-                        origOffX: c, origOffY: d, finalOffX: e, finalOffY: t,
+                        type: "wp-move",
+                        connId, idx,
+                        origOffX, origOffY, finalOffX: finalX, finalOffY: finalY,
                         undo: () => {
-                            let c = L.state.connections.find(c => c.id === n);
-                            if (c && c.waypoints[o]) { c.waypoints[o].offsetX = c; c.waypoints[o].offsetY = d; delete c.waypoints[o].t; }
+                            let c = L.state.connections.find(c => c.id === connId);
+                            if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = origOffX; c.waypoints[idx].offsetY = origOffY; delete c.waypoints[idx].t; }
                             E.emit("state:changed");
                         },
                         redo: () => {
-                            let c = L.state.connections.find(c => c.id === n);
-                            if (c && c.waypoints[o]) { c.waypoints[o].offsetX = e; c.waypoints[o].offsetY = t; delete c.waypoints[o].t; }
+                            let c = L.state.connections.find(c => c.id === connId);
+                            if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = finalX; c.waypoints[idx].offsetY = finalY; delete c.waypoints[idx].t; }
                             E.emit("state:changed");
                         }
                     });
                 }
-                // Вызываем state:changed только после завершения перетаскивания
-                E.emit("state:changed");
-            };
-        document.addEventListener("pointermove", h);
-        document.addEventListener("pointerup", m);
-    }), e.addEventListener("contextmenu", e => {
-		let t = e.target.closest(".waypoint-circle");
-		if (!t) return;
-		e.preventDefault(), e.stopPropagation();
-		let n = t.dataset.connId,
-			o = parseInt(t.dataset.index);
-		L.selectWaypoint(n, o);
-                // Если у waypoint есть t, делаем его абсолютным на основе текущей позиции
-            if (s.t !== undefined) {
-                let absPos = getAbsolutePos(s, n);
-                s.offsetX = absPos.x;
-                s.offsetY = absPos.y;
-                delete s.t;
-                // Удаляем snapToLine если был
-                delete s.snapToLine;
-                L.state.connections = L.state.connections.map(c => c.id === n ? {...c, waypoints: [...i.waypoints]} : c);
-                E.emit("state:changed");
             }
-		let i = document.getElementById("wpContextMenu");
-		i.style.left = e.clientX + "px", i.style.top = e.clientY + "px", i.classList.add("open"), i.querySelector('[data-action="delete-wp"]').style.display = "block", i.querySelector('[data-action="add-wp"]').style.display = "none"
-	}), document.getElementById("wpContextMenu").addEventListener("click", e => {
-		let t = e.target.closest(".ctx-item");
-		if (!t) return;
-		let n = t.dataset.action;
-		document.getElementById("wpContextMenu").classList.remove("open"), "delete-wp" === n && A.deleteSelectedWaypoint() && b("Точка удалена", "info")
-	}), document.addEventListener("click", e => {
-		e.target.closest("#wpContextMenu") || document.getElementById("wpContextMenu").classList.remove("open")
-	})
+            E.emit("state:changed");
+        };
+
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
+    });
+
+    // Остальная часть (contextmenu, удаление) без изменений
+    e.addEventListener("contextmenu", ev => {
+        let t = ev.target.closest(".waypoint-circle");
+        if (!t) return;
+        ev.preventDefault(); ev.stopPropagation();
+        let connId = t.dataset.connId,
+            idx = parseInt(t.dataset.index);
+        L.selectWaypoint(connId, idx);
+        let menu = document.getElementById("wpContextMenu");
+        menu.style.left = ev.clientX + "px";
+        menu.style.top = ev.clientY + "px";
+        menu.classList.add("open");
+        menu.querySelector('[data-action="delete-wp"]').style.display = "block";
+        menu.querySelector('[data-action="add-wp"]').style.display = "none";
+    });
+
+    document.getElementById("wpContextMenu").addEventListener("click", e => {
+        let item = e.target.closest(".ctx-item");
+        if (!item) return;
+        let action = item.dataset.action;
+        document.getElementById("wpContextMenu").classList.remove("open");
+        if (action === "delete-wp") {
+            A.deleteSelectedWaypoint() && b("Точка удалена", "info");
+        }
+    });
+
+    document.addEventListener("click", e => {
+        if (!e.target.closest("#wpContextMenu")) {
+            document.getElementById("wpContextMenu").classList.remove("open");
+        }
+    });
 },
   	setupLabelDrag: function() {
   		document.getElementById("guidesSvg").addEventListener("pointerdown", e => {
@@ -2197,12 +2293,23 @@ setupWaypointInteraction: function() {
 
   function Y(e, t, n) {
   	const o = e.style || {};
-  	document.getElementById("wpColor").value = o.color || "#e8a030", document.getElementById("wpShape").value = o.shape || "circle";
+  	document.getElementById("wpColor").value = o.color || "#e8a030", 
+    document.getElementById("wpShape").value = o.shape || "circle";
   	const i = o.size || "medium";
   	document.querySelectorAll("#wpSizeSelector .size-option").forEach(e => {
   		e.classList.toggle("active", e.dataset.wpSize === i)
-  	}), document.getElementById("wpTension").value = void 0 !== o.tension ? o.tension : .5, document.getElementById("wpTensionVal").textContent = void 0 !== o.tension ? o.tension : .5, document.getElementById("wpSkew").value = void 0 !== o.skew ? o.skew : 0, document.getElementById("wpSkewVal").textContent = void 0 !== o.skew ? o.skew : 0, document.getElementById("wpAngle").value = o.angleAdjust || 0, document.getElementById("wpAngleVal").textContent = o.angleAdjust || 0, document.getElementById("waypointPanel").dataset.connId = t, document.getElementById("waypointPanel").dataset.wpIndex = n
-  }
+  	}), 
+    document.getElementById("wpT").value = e.t !== undefined ? Math.round(e.t * 100) : 50;
+    document.getElementById("wpTVal").textContent = (e.t !== undefined ? Math.round(e.t * 100) : 50) + '%';
+    document.getElementById("wpTension").value = void 0 !== o.tension ? o.tension : .5; 
+    document.getElementById("wpTensionVal").textContent = void 0 !== o.tension ? o.tension : .5; 
+    document.getElementById("wpSkew").value = void 0 !== o.skew ? o.skew : 0; 
+    document.getElementById("wpSkewVal").textContent = void 0 !== o.skew ? o.skew : 0; 
+    document.getElementById("wpAngle").value = o.angleAdjust || 0; 
+    document.getElementById("wpAngleVal").textContent = o.angleAdjust || 0; 
+    document.getElementById("waypointPanel").dataset.connId = t; 
+    document.getElementById("waypointPanel").dataset.wpIndex = n
+    }
 
   function X(e, t) {
   	let n = L.state.selectedConnectionId;
@@ -2508,7 +2615,7 @@ setupWaypointInteraction: function() {
   		width: s.width,
   		height: s.height,
   		bgColor: e.config.bgColor,
-  		isLocked: !0,
+  		isLocked: !1,
   		title: e.config.title,
   		items: l
   	};
@@ -2693,7 +2800,48 @@ setupWaypointInteraction: function() {
   	}), document.getElementById("wpTension").addEventListener("input", e => {
   		const t = parseFloat(e.target.value);
   		document.getElementById("wpTensionVal").textContent = t, T("tension", t)
-  	}), document.getElementById("wpSkew").addEventListener("input", e => {
+  	}),
+    document.getElementById("wpT").addEventListener("input", e => {
+    const val = parseInt(e.target.value);
+    document.getElementById("wpTVal").textContent = val + '%';
+    const panel = document.getElementById("waypointPanel");
+    const connId = panel.dataset.connId;
+    const wpIdx = parseInt(panel.dataset.wpIndex);
+    if (isNaN(wpIdx) || !connId) return;
+    let conn = L.state.connections.find(c => c.id === connId);
+    if (!conn || !conn.waypoints || !conn.waypoints[wpIdx]) return;
+    conn.waypoints[wpIdx].t = val / 100;
+    A.renderConnections();
+    E.emit("state:changed");
+});
+    // Обработчики модального окна "Помощь"
+document.getElementById("btnHelp").addEventListener("click", () => {
+    document.getElementById("shortcutsModal").classList.toggle("open");
+});
+document.getElementById("closeShortcuts").addEventListener("click", () => {
+    document.getElementById("shortcutsModal").classList.remove("open");
+});
+document.getElementById("shortcutsModal").addEventListener("click", e => {
+    if (e.target === document.getElementById("shortcutsModal")) {
+        document.getElementById("shortcutsModal").classList.remove("open");
+    }
+});
+
+// Глобальные горячие клавиши для подсказки
+document.addEventListener("keydown", e => {
+    if ((e.ctrlKey && e.code === "Slash") || (e.key === "?" && !e.ctrlKey && !e.metaKey)) {
+        e.preventDefault();
+        document.getElementById("shortcutsModal").classList.toggle("open");
+    }
+    if (e.key === "Escape") {
+        const modal = document.getElementById("shortcutsModal");
+        if (modal && modal.classList.contains("open")) {
+            modal.classList.remove("open");
+        }
+    }
+});    
+
+    document.getElementById("wpSkew").addEventListener("input", e => {
   		const t = parseFloat(e.target.value);
   		document.getElementById("wpSkewVal").textContent = t, T("skew", t)
   	}), document.getElementById("wpAngle").addEventListener("input", e => {
