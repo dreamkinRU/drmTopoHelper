@@ -1684,6 +1684,7 @@ var SV = "http://www.w3.org/2000/svg";
         from = x(n.from.blockId, n.from.itemIndex),
         to = x(n.to.blockId, n.to.itemIndex);
     if (!from || !to) return;
+
     // Вычисляем реальные точки портов (как в renderConnections)
     let startPt, endPt;
     if (n.from.side && void 0 !== n.from.t && null !== n.from.t) startPt = y(from, n.from.side, n.from.t);
@@ -1691,52 +1692,129 @@ var SV = "http://www.w3.org/2000/svg";
     if (n.to.side && void 0 !== n.to.t && null !== n.to.t) endPt = y(to, n.to.side, n.to.t);
     else { let e = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; endPt = f(to, e.x, e.y) }
 
+    // === Собираем ВСЕ текущие waypoints с учётом t (вычисляем их абсолютные позиции) ===
     let waypoints = n.waypoints ? [...n.waypoints] : [];
-    let pts = [startPt];
+    let absWaypoints = []; // массив абсолютных позиций для каждого waypoint (по порядку)
+    // Сначала строим полный набор абсолютных точек, включая start, все waypoints (с t рассчитанными), end
+    let allPts = [startPt];
     waypoints.forEach(wp => {
-        let ax = wp.offsetX, ay = wp.offsetY;
-        if (wp.blockId) {
-            let b = L.getBlock(wp.blockId);
-            if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+        if (wp.t !== undefined) {
+            // относительная точка, её позиция будет вычислена после построения кривой без неё
+            allPts.push(null);
+        } else {
+            let ax = wp.offsetX, ay = wp.offsetY;
+            if (wp.blockId) {
+                let b = L.getBlock(wp.blockId);
+                if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+            }
+            allPts.push({x: ax, y: ay});
         }
-        pts.push({x: ax, y: ay});
     });
-    pts.push(endPt);
-    let totalLen = 0, segLengths = [];
-    for (let j = 0; j < pts.length - 1; j++) {
-        let len = Math.hypot(pts[j+1].x - pts[j].x, pts[j+1].y - pts[j].y);
-        segLengths.push(len); totalLen += len;
+    allPts.push(endPt);
+
+    // Теперь вычисляем абсолютные позиции для всех точек с t, используя временную кривую без них
+    let cleanPts = allPts.filter(p => p !== null);
+    if (cleanPts.length < 2) return; // не должно быть
+    // Строим d-строку временной кривой (без относительных точек) чтобы измерить длины
+    let a = [startPt, ...cleanPts.slice(1, -1), endPt]; // cleanPts уже включает start и end
+    const c = a.map((e, t) => 0 === t || t === a.length - 1 ? {} : e.style || {}),
+        d = a.length, r = new Array(d),
+        h = (e, t) => { const n = Math.hypot(e, t) || 1; return { x: e / n, y: t / n } },
+        m = startPt.side || "right", u = { top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+    r[0] = u[m] || u.right;
+    const p = u[endPt.side || "left"] || u.left;
+    r[d - 1] = { x: -p.x, y: -p.y };
+    for (let e = 1; e < d - 1; e++) {
+        const t = a[e - 1], n = a[e], o = a[e + 1],
+            i = h(n.x - t.x, n.y - t.y), s = h(o.x - n.x, o.y - n.y),
+            l = c[e] || {}, d = l.skew || 0, m = l.angleAdjust || 0,
+            u = (1 + d) * i.x + (1 - d) * s.x, p = (1 + d) * i.y + (1 - d) * s.y,
+            g = Math.hypot(u, p) || 1;
+        let f = { x: u / g, y: p / g };
+        if (0 !== m) {
+            const e = m * Math.PI / 180, t = Math.cos(e), n = Math.sin(e);
+            f = { x: f.x * t - f.y * n, y: f.x * n + f.y * t }
+        }
+        r[e] = f
     }
-    // Проекция клика
-    let bestDist = Infinity, bestT = 0, insertIdx = 0, cumLen = 0;
-    for (let j = 0; j < pts.length - 1; j++) {
-        let p1 = pts[j], p2 = pts[j+1];
+    const g = [];
+    for (let e = 0; e < d - 1; e++) {
+        const t = a[e], n = a[e + 1],
+            o = Math.hypot(n.x - t.x, n.y - t.y),
+            i = Math.max(80, Math.min(250, .5 * o)),
+            s = 1 - (e > 0 && e < d - 1 ? void 0 !== c[e].tension ? c[e].tension : .5 : 0),
+            l = 1 - (e + 1 > 0 && e + 1 < d - 1 ? void 0 !== c[e + 1].tension ? c[e + 1].tension : .5 : 0),
+            h = t.x + r[e].x * i * s, m = t.y + r[e].y * i * s,
+            u = n.x - r[e + 1].x * i * l, p = n.y - r[e + 1].y * i * l;
+        0 === e ? g.push(`M ${t.x} ${t.y} C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`) : g.push(`C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`)
+    }
+    const k = g.join(" ");
+    let tempPath = document.createElementNS(SV, "path");
+    tempPath.setAttribute("d", k);
+    let totalLen = tempPath.getTotalLength();
+
+    // Для каждой относительной точки вычисляем её абсолютное положение и длину от начала
+    let wpIdx = 0;
+    let ptsWithAbs = [startPt]; // массив абсолютных точек для поиска сегмента
+    for (let i = 0; i < allPts.length; i++) {
+        if (allPts[i] === null) {
+            let wp = waypoints[wpIdx];
+            let targetDist = wp.t * totalLen;
+            let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+            allPts[i] = { x: pt.x, y: pt.y };
+            wpIdx++;
+        }
+        ptsWithAbs.push(allPts[i]);
+    }
+    // ptsWithAbs теперь полный массив абсолютных точек: start, waypoints (абсолютные), end
+
+    // Теперь ищем ближайший сегмент к клику (i,s) и параметр t от начала пути
+    let bestDist = Infinity, bestT = 0, insertIdx = 0;
+    let cumDist = 0;
+    // Используем ptsWithAbs для вычисления длин сегментов
+    for (let j = 0; j < ptsWithAbs.length - 1; j++) {
+        let p1 = ptsWithAbs[j], p2 = ptsWithAbs[j + 1];
+        let segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
         let dx = p2.x - p1.x, dy = p2.y - p1.y, len2 = dx*dx + dy*dy;
-        let t_seg = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((i-p1.x)*dx + (s-p1.y)*dy) / len2));
+        let t_seg = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((i - p1.x)*dx + (s - p1.y)*dy) / len2));
         let projX = p1.x + t_seg * dx, projY = p1.y + t_seg * dy;
         let dist = Math.hypot(i - projX, s - projY);
         if (dist < bestDist) {
             bestDist = dist;
-            bestT = totalLen > 0 ? (cumLen + t_seg * segLengths[j]) / totalLen : 0;
-            insertIdx = j;
+            // t от начала всего пути
+            bestT = totalLen > 0 ? (cumDist + t_seg * segLen) / totalLen : 0;
+            insertIdx = j; // индекс в ptsWithAbs, соответствует waypoints? нужно преобразовать
         }
-        cumLen += segLengths[j];
+        cumDist += segLen;
     }
+
+    // Определяем индекс для вставки в массив waypoints:
+    // ptsWithAbs содержит start, затем waypoints, затем end.
+    // Значит waypoints расположены в ptsWithAbs начиная с индекса 1.
+    // insertIdx указывает на сегмент между ptsWithAbs[insertIdx] и ptsWithAbs[insertIdx+1]
+    // Если insertIdx == 0, сегмент (start, первый waypoint) -> новая точка должна быть перед первым waypoint, т.е. index = 0
+    // Если insertIdx == 1, сегмент между первым и вторым waypoint (или между waypoint[0] и waypoint[1]) -> вставить после первого waypoint, index = 1
+    // Общая формула: индекс вставки = insertIdx (т.к. стартовая точка не считается waypoint, индекс waypoint = insertIdx)
+    // Но если insertIdx = waypoints.length (сегмент между последним waypoint и end), индекс вставки = waypoints.length.
+    let insIdx = insertIdx;
+    // Проверка границ
+    if (insIdx > waypoints.length) insIdx = waypoints.length;
+
     let newWp = { offsetX: 0, offsetY: 0, t: bestT, style: {} };
-    waypoints.splice(insertIdx, 0, newWp);
+    waypoints.splice(insIdx, 0, newWp);
     L.state.connections = L.state.connections.map(c => c.id === t ? {...c, waypoints: waypoints} : c);
-    L.selectWaypoint(t, insertIdx);
+    L.selectWaypoint(t, insIdx);
     E.emit("state:changed");
     B.push({
-        type: "wp-add", connId: t, waypoint: newWp, index: insertIdx,
+        type: "wp-add", connId: t, waypoint: newWp, index: insIdx,
         undo: () => {
             let c = L.state.connections.find(c => c.id === t);
-            if (c && c.waypoints) c.waypoints.splice(insertIdx, 1);
+            if (c && c.waypoints) c.waypoints.splice(insIdx, 1);
             E.emit("state:changed");
         },
         redo: () => {
             let c = L.state.connections.find(c => c.id === t);
-            if (c) { c.waypoints = c.waypoints || []; c.waypoints.splice(insertIdx, 0, newWp); }
+            if (c) { c.waypoints = c.waypoints || []; c.waypoints.splice(insIdx, 0, newWp); }
             E.emit("state:changed");
         }
     });
