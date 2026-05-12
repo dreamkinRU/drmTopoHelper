@@ -491,7 +491,12 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     <div class="section-header"><span>Оформление</span><span class="toggle-icon">▼</span></div>
     <div class="section-content">
       <label>Цвет</label><input type="color" id="wpColor" value="#e8a030">
-      <label>Форма</label><select id="wpShape"><option value="circle">Круг</option><option value="square">Квадрат</option><option value="diamond">Ромб</option></select>
+      <label>Форма</label>
+<div class="visual-selector" id="wpShapeSelector">
+  <button class="visual-option marker-opt active" data-value="circle" title="Круг"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5"/></svg></button>
+  <button class="visual-option marker-opt" data-value="square" title="Квадрат"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg></button>
+  <button class="visual-option marker-opt" data-value="diamond" title="Ромб"><svg viewBox="0 0 20 20"><polygon points="10,3 17,10 10,17 3,10"/></svg></button>
+</div>
       <label>Размер</label>
       <div class="size-selector" id="wpSizeSelector">
         <button class="size-option active" data-wp-size="small">S</button>
@@ -2922,7 +2927,20 @@ function T(e, t) {
   		e.addEventListener("click", () => {
   			e.parentElement.classList.toggle("collapsed")
   		})
-  	}), document.getElementById("wpColor").addEventListener("input", e => T("color", e.target.value)), document.getElementById("wpShape").addEventListener("change", e => T("shape", e.target.value)), document.getElementById("wpSizeSelector").addEventListener("click", e => {
+  	}), document.getElementById("wpColor").addEventListener("input", e => T("color", e.target.value)); 
+	const wpShapeSelector = document.getElementById("wpShapeSelector");
+if (wpShapeSelector) {
+    wpShapeSelector.addEventListener("click", e => {
+        const btn = e.target.closest(".visual-option");
+        if (!btn) return;
+        wpShapeSelector.querySelectorAll(".visual-option").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        T("shape", btn.dataset.value);
+    });
+} else {
+    console.warn("wpShapeSelector not found in DOM");
+}
+	document.getElementById("wpSizeSelector").addEventListener("click", e => {
   		const t = e.target.closest(".size-option");
   		t && T("size", t.dataset.wpSize)
   	}), document.getElementById("wpTension").addEventListener("input", e => {
