@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>dreamkin topology helper v.0.99</title>
+<title>dreamkin topology helper v.0.991</title>
 <style>
 :root {
 --bg:#2a2b2e;--surface:#161618;--card:#1e1e22;--border:#2a2a30;
@@ -316,7 +316,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="toolbar-brand">
 <div id="toolbar-logo-badge"><span class="drm-icon-slot" data-icon="cubes"></span></div>
 <span id="toolbar-logo-text">drmTopoHelper</span>
-<span id="toolbar-version">v.0.99</span>
+<span id="toolbar-version">v.0.991</span>
 </div>
 <div class="divider"></div>
 
@@ -508,10 +508,11 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="section" id="wpSecCurve">
 <div class="section-header"><span>Настройки</span><span class="toggle-icon">▼</span></div>
 <div class="section-content">
-<label>Позиция (<span id="wpTVal">50%</span>)</label><input type="range" id="wpT" min="0" max="100" step="1" value="50">
+<div id="wpTPositionGroup"><label>Позиция (<span id="wpTVal">50%</span>)</label><input type="range" id="wpT" min="0" max="100" step="1" value="50"></div>
 <label>Притяжение (<span id="wpTensionVal">0.5</span>)</label><input type="range" id="wpTension" min="0" max="1" step="0.1" value="0.5">
 <label>Асимметрия (<span id="wpSkewVal">0</span>)</label><input type="range" id="wpSkew" min="-1" max="1" step="0.1" value="0">
 <label>Доворот касат. (<span id="wpAngleVal">0</span>°)</label><input type="range" id="wpAngle" min="-60" max="60" value="0">
+<label>Режим точки</label><button class="btn" id="wpToggleMode" style="margin-bottom:8px;">Сделать абсолютной</button>
 </div>
 </div>
 </div>
@@ -720,6 +721,88 @@ y: 0
 a = l[t] || l.right,
 c = l[o] || l.left;
 return `M ${e.x} ${e.y} C ${e.x+a.x*s} ${e.y+a.y*s}, ${n.x+c.x*s} ${n.y+c.y*s}, ${n.x} ${n.y}`
+}
+
+function buildConnectionPath(conn) {
+    let from = x(conn.from.blockId, conn.from.itemIndex);
+    let to = x(conn.to.blockId, conn.to.itemIndex);
+    if (!from || !to) return null;
+    let n, o;
+    if (conn.from.side && conn.from.t != null) n = y(from, conn.from.side, conn.from.t);
+    else { let dummy = { x: to.x + to.w/2, y: to.y + to.h/2 }; n = f(from, dummy.x, dummy.y); }
+    if (conn.to.side && conn.to.t != null) o = y(to, conn.to.side, conn.to.t);
+    else { let dummy = { x: from.x + from.w/2, y: from.y + from.h/2 }; o = f(to, dummy.x, dummy.y); }
+
+    let waypoints = conn.waypoints || [];
+    let pts = [n];
+    for (let wp of waypoints) {
+        if (wp.t !== undefined) {
+            // Пропускаем относительные точки, они будут вычислены позже
+            continue;
+        }
+        let ax = wp.offsetX, ay = wp.offsetY;
+        if (wp.blockId) {
+            let b = L.getBlock(wp.blockId);
+            if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+        }
+        pts.push({ x: ax, y: ay, style: wp.style || {} });
+    }
+    pts.push(o);
+
+    let d = pts.length;
+    let tangents = new Array(d);
+    let sides = { top: { x:0, y:-1 }, bottom: { x:0, y:1 }, left: { x:-1, y:0 }, right: { x:1, y:0 } };
+    tangents[0] = sides[n.side || 'right'] || sides.right;
+    tangents[d-1] = { x: - (sides[o.side || 'left'] || sides.left).x, y: - (sides[o.side || 'left'] || sides.left).y };
+    for (let i = 1; i < d-1; i++) {
+        let p0 = pts[i-1], p1 = pts[i], p2 = pts[i+1];
+        let dx1 = p1.x - p0.x, dy1 = p1.y - p0.y;
+        let dx2 = p2.x - p1.x, dy2 = p2.y - p1.y;
+        let len1 = Math.hypot(dx1, dy1) || 1;
+        let len2 = Math.hypot(dx2, dy2) || 1;
+        let nx1 = dx1/len1, ny1 = dy1/len1;
+        let nx2 = dx2/len2, ny2 = dy2/len2;
+        let style = p1.style || {};
+        let skew = style.skew || 0;
+        let angleAdjust = style.angleAdjust || 0;
+        let tx = (1+skew)*nx1 + (1-skew)*nx2;
+        let ty = (1+skew)*ny1 + (1-skew)*ny2;
+        let tl = Math.hypot(tx, ty) || 1;
+        let tangent = { x: tx/tl, y: ty/tl };
+        if (angleAdjust !== 0) {
+            let rad = angleAdjust * Math.PI / 180;
+            let cos = Math.cos(rad), sin = Math.sin(rad);
+            tangent = {
+                x: tangent.x * cos - tangent.y * sin,
+                y: tangent.x * sin + tangent.y * cos
+            };
+        }
+        tangents[i] = tangent;
+    }
+
+    let dStr = '';
+    for (let i = 0; i < d-1; i++) {
+        let p1 = pts[i], p2 = pts[i+1];
+        let dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        let baseDist = Math.max(80, Math.min(250, 0.5 * dist));
+        let tension1 = (i > 0 && pts[i].style && pts[i].style.tension != null) ? pts[i].style.tension : 0.5;
+        let tension2 = (i+1 < d-1 && pts[i+1].style && pts[i+1].style.tension != null) ? pts[i+1].style.tension : 0.5;
+        let cp1x = p1.x + tangents[i].x * baseDist * (1 - tension1);
+        let cp1y = p1.y + tangents[i].y * baseDist * (1 - tension1);
+        let cp2x = p2.x - tangents[i+1].x * baseDist * (1 - tension2);
+        let cp2y = p2.y - tangents[i+1].y * baseDist * (1 - tension2);
+        if (i === 0) {
+            dStr += `M ${p1.x} ${p1.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y} `;
+        } else {
+            dStr += `C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y} `;
+        }
+    }
+
+    // Создаём временный path для измерения длины
+    let tempPath = document.createElementNS(SV, "path");
+    tempPath.setAttribute("d", dStr);
+    let totalLen = tempPath.getTotalLength() || 1;
+    return { d: dStr, totalLen: totalLen };
 }
 
 function x(e, t) {
@@ -1587,26 +1670,57 @@ h = t.x + r[e].x * i * s, m = t.y + r[e].y * i * s,
 u = n.x - r[e + 1].x * i * l, p = n.y - r[e + 1].y * i * l;
 0 === e ? g.push(`M ${t.x} ${t.y} C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`) : g.push(`C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`)
 }
-const k = g.join(" ");
+let k = g.join(" ");
 
 // Если есть относительные точки, вычисляем их абсолютные позиции на кривой
 if (relIndices.length > 0) {
-let tempPath = document.createElementNS(SV, "path");
-tempPath.setAttribute("d", k);
-let totalLen = tempPath.getTotalLength() || 1;
-relIndices.forEach(r => {
-let wp = waypoints[r.idx];
-let targetDist = wp.t * totalLen;
-let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
-// Вставляем абсолютную позицию в l (индекс в l соответствует индексу в waypoints)
-let idxInL = r.idx; // напрямую, потому что l уже содержит только абсолютные точки, и их порядок совпадает с waypoints
-if (idxInL < l.length) {
-l[idxInL] = { x: pt.x, y: pt.y, style: wp.style || {} };
-} else {
-// На всякий случай добавляем в конец
-l.push({ x: pt.x, y: pt.y, style: wp.style || {} });
-}
-});
+    // Первая итерация: позиции на кривой без учёта относительных точек
+    let tempPath = document.createElementNS(SV, "path");
+    tempPath.setAttribute("d", k);
+    let totalLen = tempPath.getTotalLength() || 1;
+    relIndices.forEach(r => {
+        let wp = waypoints[r.idx];
+        let targetDist = wp.t * totalLen;
+        let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+        let idxInL = r.idx;
+        if (idxInL < l.length) {
+            l[idxInL] = { x: pt.x, y: pt.y, style: wp.style || {} };
+        } else {
+            l.push({ x: pt.x, y: pt.y, style: wp.style || {} });
+        }
+    });
+
+    // Вторая итерация: перестраиваем кривую с учётом теперь уже абсолютных позиций относительных точек
+    let a2 = [n, ...l, o];
+    const c2 = a2.map((e, t) => 0 === t || t === a2.length - 1 ? {} : e.style || {}),
+        d2 = a2.length, r2 = new Array(d2);
+    r2[0] = r[0];
+    r2[d2 - 1] = r[d - 1];
+    for (let e = 1; e < d2 - 1; e++) {
+        const t = a2[e - 1], n2 = a2[e], o2 = a2[e + 1],
+            i = h(n2.x - t.x, n2.y - t.y), s = h(o2.x - n2.x, o2.y - n2.y),
+            l2 = c2[e] || {}, d3 = l2.skew || 0, m3 = l2.angleAdjust || 0,
+            u2 = (1 + d3) * i.x + (1 - d3) * s.x, p2 = (1 + d3) * i.y + (1 - d3) * s.y,
+            g2 = Math.hypot(u2, p2) || 1;
+        let f = { x: u2 / g2, y: p2 / g2 };
+        if (0 !== m3) {
+            const e2 = m3 * Math.PI / 180, t2 = Math.cos(e2), n3 = Math.sin(e2);
+            f = { x: f.x * t2 - f.y * n3, y: f.x * n3 + f.y * t2 }
+        }
+        r2[e] = f
+    }
+    const g2 = [];
+    for (let e2 = 0; e2 < d2 - 1; e2++) {
+        const t2 = a2[e2], n2 = a2[e2 + 1],
+            o2 = Math.hypot(n2.x - t2.x, n2.y - t2.y),
+            i2 = Math.max(80, Math.min(250, .5 * o2)),
+            s2 = 1 - (e2 > 0 && e2 < d2 - 1 ? void 0 !== c2[e2].tension ? c2[e2].tension : .5 : 0),
+            l2 = 1 - (e2 + 1 > 0 && e2 + 1 < d2 - 1 ? void 0 !== c2[e2 + 1].tension ? c2[e2 + 1].tension : .5 : 0),
+            h2 = t2.x + r2[e2].x * i2 * s2, m2 = t2.y + r2[e2].y * i2 * s2,
+            u2 = n2.x - r2[e2 + 1].x * i2 * l2, p2 = n2.y - r2[e2 + 1].y * i2 * l2;
+        0 === e2 ? g2.push(`M ${t2.x} ${t2.y} C ${h2} ${m2} ${u2} ${p2} ${n2.x} ${n2.y}`) : g2.push(`C ${h2} ${m2} ${u2} ${p2} ${n2.x} ${n2.y}`)
+    }
+    k = g2.join(" "); // заменяем d-строку на уточнённую
 }
 
 // Отрисовка кривой и всех точек
@@ -2435,8 +2549,19 @@ document.getElementById("wpSkew").value = void 0 !== o.skew ? o.skew : 0;
 document.getElementById("wpSkewVal").textContent = void 0 !== o.skew ? o.skew : 0; 
 document.getElementById("wpAngle").value = o.angleAdjust || 0; 
 document.getElementById("wpAngleVal").textContent = o.angleAdjust || 0; 
-document.getElementById("waypointPanel").dataset.connId = t; 
-document.getElementById("waypointPanel").dataset.wpIndex = n
+const wpAbs = (e.offsetX !== undefined);
+    const toggleBtn = document.getElementById("wpToggleMode");
+    if (toggleBtn) {
+        toggleBtn.style.display = "";
+        toggleBtn.textContent = wpAbs ? "Сделать относительной" : "Сделать абсолютной";
+    }
+    const tGroup = document.getElementById("wpTPositionGroup");
+    if (tGroup) {
+        tGroup.style.display = wpAbs ? "none" : "";
+    }
+
+    document.getElementById("waypointPanel").dataset.connId = t;
+    document.getElementById("waypointPanel").dataset.wpIndex = n;
 }
 
 function X(e, t) {
@@ -2463,17 +2588,44 @@ o && (o[e] = t), E.emit("state:changed")
 }
 
 function T(e, t) {
-const n = document.getElementById("waypointPanel"),
-o = n.dataset.connId,
-i = parseInt(n.dataset.wpIndex);
-if (isNaN(i) || !o) return;
-let s = L.state.connections.find(c => c.id === o);
-if (!s || !s.waypoints || !s.waypoints[i]) return;
-let l = s.waypoints[i];
-l.style || (l.style = {});
-l.style[e] = t;
-A.renderConnections();
-Y(l, o, i);
+    const n = document.getElementById("waypointPanel"),
+        o = n.dataset.connId,
+        i = parseInt(n.dataset.wpIndex);
+    if (isNaN(i) || !o) return;
+    let s = L.state.connections.find(c => c.id === o);
+    if (!s || !s.waypoints || !s.waypoints[i]) return;
+    let wp = s.waypoints[i];
+    wp.style || (wp.style = {});
+    let oldStyle = JSON.parse(JSON.stringify(wp.style));
+    wp.style[e] = t;
+    if (JSON.stringify(oldStyle[e]) !== JSON.stringify(t)) {
+        B.push({
+            type: "wp-style",
+            connId: o,
+            wpIndex: i,
+            prop: e,
+            oldVal: oldStyle[e],
+            newVal: t,
+            undo: () => {
+                let conn = L.state.connections.find(c => c.id === o);
+                if (conn && conn.waypoints && conn.waypoints[i]) {
+                    conn.waypoints[i].style || (conn.waypoints[i].style = {});
+                    conn.waypoints[i].style[e] = oldStyle[e];
+                }
+                E.emit("state:changed");
+            },
+            redo: () => {
+                let conn = L.state.connections.find(c => c.id === o);
+                if (conn && conn.waypoints && conn.waypoints[i]) {
+                    conn.waypoints[i].style || (conn.waypoints[i].style = {});
+                    conn.waypoints[i].style[e] = t;
+                }
+                E.emit("state:changed");
+            }
+        });
+    }
+    A.renderConnections();
+    Y(wp, o, i);
 }
 let W, H;
 const O = document.getElementById("workspace"),
@@ -2871,7 +3023,7 @@ const fe = "drmTopoHelper";
 function ye() {
 try {
 let e = {
-version: "0.99",
+version: "0.991",
 timestamp: (new Date).toISOString(),
 blockIdCounter: L.state.blockIdCounter,
 connectionIdCounter: L.state.connectionIdCounter,
@@ -3037,7 +3189,64 @@ if (conn && conn.waypoints && conn.waypoints[wpIdx]) {
 Y(conn.waypoints[wpIdx], connId, wpIdx);
 }
 }
-}); document.getElementById("closeWaypointPanel").addEventListener("click", () => {
+}); 
+document.getElementById("wpToggleMode").addEventListener("click", () => {
+    const panel = document.getElementById("waypointPanel");
+    const connId = panel.dataset.connId;
+    const idx = parseInt(panel.dataset.wpIndex);
+    if (isNaN(idx) || !connId) return;
+    let conn = L.state.connections.find(c => c.id === connId);
+    if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
+    let wp = conn.waypoints[idx];
+
+    if (wp.t !== undefined) {
+        // Делаем абсолютной
+        // Получаем текущую абсолютную позицию из временной кривой
+        let pathData = buildConnectionPath(conn);
+        if (!pathData) return;
+        let targetDist = wp.t * pathData.totalLen;
+        let tempPath = document.createElementNS(SV, "path");
+        tempPath.setAttribute("d", pathData.d);
+        let pt = tempPath.getPointAtLength(Math.min(targetDist, pathData.totalLen));
+        wp.offsetX = pt.x;
+        wp.offsetY = pt.y;
+        delete wp.t;
+        delete wp.snapToLine;
+        E.emit("state:changed");
+        Y(wp, connId, idx);
+        A.renderConnections();
+        b("Точка стала абсолютной", "info");
+    } else {
+        // Делаем относительной
+        let pathData = buildConnectionPath(conn);
+        if (!pathData) return;
+        let absPos = { x: wp.offsetX, y: wp.offsetY };
+        if (wp.blockId) {
+            let b = L.getBlock(wp.blockId);
+            if (b) { absPos.x = b.x + wp.offsetX; absPos.y = b.y + wp.offsetY; }
+        }
+        let tempPath = document.createElementNS(SV, "path");
+        tempPath.setAttribute("d", pathData.d);
+        let total = pathData.totalLen;
+        let bestDist = Infinity, bestT = 0;
+        // Поиск ближайшей точки на кривой
+        for (let l = 0; l <= total; l += 1) {
+            let pt = tempPath.getPointAtLength(l);
+            let d = Math.hypot(absPos.x - pt.x, absPos.y - pt.y);
+            if (d < bestDist) { bestDist = d; bestT = l / total; }
+        }
+        wp.t = bestT;
+        delete wp.offsetX;
+        delete wp.offsetY;
+        delete wp.blockId;
+        delete wp.snapToLine;
+        E.emit("state:changed");
+        Y(wp, connId, idx);
+        A.renderConnections();
+        b("Точка стала относительной", "info");
+    }
+});
+document.getElementById("closeWaypointPanel").addEventListener("click", () => {
 document.getElementById("waypointPanel").classList.remove("open"), L.state.selectedWaypoint = null, E.emit("state:changed")
 }), document.querySelectorAll("#waypointPanel .section-header").forEach(e => {
 e.addEventListener("click", () => e.parentElement.classList.toggle("collapsed"))
@@ -3085,7 +3294,7 @@ document.getElementById("btnEdit").addEventListener("click", () => {
 }), document.getElementById("btnDelete").addEventListener("click", re), document.getElementById("btnDuplicate").addEventListener("click", he), document.getElementById("btnSave").addEventListener("click", () => {
 if (!L.state.blocks.length) return void b("Нечего сохранять", "error");
 let e = {
-version: "1.50",
+version: "0.991",
 timestamp: (new Date).toISOString(),
 blockIdCounter: L.state.blockIdCounter,
 connectionIdCounter: L.state.connectionIdCounter,
@@ -3544,198 +3753,184 @@ e ? (this.gx.setAttribute("x1", e.val), this.gx.setAttribute("x2", e.val), this.
 clearGuides() {
 this.gx.style.opacity = "0", this.gy.style.opacity = "0"
 }
-}, H = new class {
-constructor(e) {
-this.vp = e, this.ws = document.getElementById("workspace"), this.cw = document.getElementById("canvasWrapper"), this.cm = document.getElementById("contextMenu"), this.ah = document.getElementById("altHint"), this.altHeld = !1, this.isAltDragging = !1, this.rbEl = null, this.rbSX = 0, this.rbSY = 0, this.rbActive = !1, this.isPanning = !1, this.pSX = 0, this.pSY = 0, this.sSX = 0, this.sSY = 0, this.init()
-}
-init() {
-document.addEventListener("keydown", e => {
-"Alt" === e.key && (this.altHeld = !0, this.ws.classList.add("alt-drag"), this.ah.classList.add("visible"))
-}),
-
-document.addEventListener("keydown", e => {
-if ((e.ctrlKey && e.code === "Slash") || (e.key === "?" && !e.ctrlKey && !e.metaKey)) {
-e.preventDefault();
-document.getElementById("shortcutsModal").classList.toggle("open");
-return;
-}
-if (e.key === "Escape") {
-const modal = document.getElementById("shortcutsModal");
-if (modal && modal.classList.contains("open")) {
-modal.classList.remove("open");
-return;
-}
-}
-});
-document.addEventListener("keyup", e => {
-"Alt" === e.key && (this.altHeld = !1, this.isAltDragging = !1, this.ws.classList.remove("alt-drag"), this.ah.classList.remove("visible"), this.cw.querySelectorAll(".block.alt-grab-hint").forEach(e => e.classList.remove("alt-grab-hint")))
-})
-
-, this.ws.addEventListener("pointerdown", e => {
-e.target.closest(".block") || e.target.closest(".port-dot") || e.target.closest(".waypoint-circle") || e.target.closest(".label-drag-handle") || (0 === e.button ? (e.shiftKey || L.clearSelection(), this.rbActive = !0, this.rbSX = e.clientX, this.rbSY = e.clientY, this.ws.setPointerCapture(e.pointerId), e.preventDefault()) : 2 === e.button && (this.isPanning = !0, this.pSX = e.clientX, this.pSY = e.clientY, this.sSX = this.ws.scrollLeft, this.sSY = this.ws.scrollTop, this.ws.style.cursor = "grabbing", this.ws.setPointerCapture(e.pointerId), e.preventDefault()))
-}), this.ws.addEventListener("pointermove", e => {
-if (this.rbActive) {
-let t = Math.abs(e.clientX - this.rbSX),
-n = Math.abs(e.clientY - this.rbSY);
-if (t > 4 || n > 4) {
-this.rbEl || (this.rbEl = document.createElement("div"), this.rbEl.className = "rubber-band", this.cw.appendChild(this.rbEl));
-let t = this.ws.getBoundingClientRect(),
-n = Math.min(e.clientX, this.rbSX) - t.left + this.ws.scrollLeft,
-o = Math.min(e.clientY, this.rbSY) - t.top + this.ws.scrollTop,
-i = Math.abs(e.clientX - this.rbSX),
-s = Math.abs(e.clientY - this.rbSY);
-this.rbEl.style.cssText = `left:${n/L.state.zoom}px;top:${o/L.state.zoom}px;width:${i/L.state.zoom}px;height:${s/L.state.zoom}px`;
-let l = {
-x: n / L.state.zoom,
-y: o / L.state.zoom,
-width: i / L.state.zoom,
-height: s / L.state.zoom
-},
-a = new Set;
-L.state.blocks.forEach(e => {
-let t = document.getElementById(e.id);
-t && (e.x < l.x + l.width && e.x + e.width > l.x && e.y < l.y + l.height && e.y + e.height > l.y ? (a.add(e.id), t.classList.add("selected", "rb-preview")) : t.classList.remove("selected", "rb-preview"))
-}), L.state.selectedIds = a, A.updateGeneralUI()
-}
-}
-this.isPanning && (this.ws.scrollLeft = this.sSX - (e.clientX - this.pSX) / L.state.zoom, this.ws.scrollTop = this.sSY - (e.clientY - this.pSY) / L.state.zoom, this.vp.clamp())
-}), this.ws.addEventListener("pointerup", e => {
-this.rbActive && (this.rbActive = !1, this.rbEl && (this.rbEl.remove(), this.rbEl = null, E.emit("selection:changed", L.state.selectedIds)), this.cw.querySelectorAll(".block.rb-preview").forEach(e => e.classList.remove("rb-preview"))), 2 === e.button && this.isPanning && (this.isPanning = !1, this.ws.style.cursor = "")
-}), this.ws.addEventListener("contextmenu", e => {
-e.preventDefault();
-let t = e.target.closest(".block");
-if (t) {
-let n = t.dataset.blockId,
-o = L.getBlock(n);
-if (o) {
-L.selectBlock(n), this.cm.querySelector('[data-action="lock"]').innerHTML = h(o.isLocked ? "lock_open" : "lock") + (o.isLocked ? " Разблокировать" : " Заблокировать"), this.cm.style.left = e.clientX + "px", this.cm.style.top = e.clientY + "px", this.cm.classList.add("open")
-}
-} else this.cm.classList.remove("open")
-}), document.addEventListener("click", e => {
-e.target.closest(".context-menu") || (document.getElementById("contextMenu").classList.remove("open"), document.getElementById("connContextMenu").classList.remove("open"))
-}), this.cm.addEventListener("click", e => {
-let t = e.target.closest(".ctx-item");
-if (!t) return;
-let n = t.dataset.action,
-o = [...L.state.selectedIds][0];
-if (o)
-if (this.cm.classList.remove("open"), "edit" === n) de(o);
-else if ("duplicate" === n) he();
-else if ("delete" === n) re();
-else if ("lock" === n) {
-let e = L.getBlock(o);
-e && L.lockBlock(o, !e.isLocked)
-}
-					else if ("front" === n) {
-    let block = L.getBlock(o);
-    if (block) {
-        let oldIndex = L.state.blocks.indexOf(block);
-        L.bringToFront(o);
-        B.push({
-            type: "order",
-            blockId: o,
-            oldIndex: oldIndex,
-            newIndex: L.state.blocks.length - 1,
-            undo: () => {
-                let b = L.state.blocks.splice(L.state.blocks.length - 1, 1)[0];
-                L.state.blocks.splice(oldIndex, 0, b);
-                E.emit("state:changed");
-            },
-            redo: () => {
-                let b = L.state.blocks.splice(oldIndex, 1)[0];
-                L.state.blocks.push(b);
-                E.emit("state:changed");
-            }
-        });
+}, 
+H = new class {
+    constructor(e) {
+        this.vp = e, this.ws = document.getElementById("workspace"), this.cw = document.getElementById("canvasWrapper"), this.cm = document.getElementById("contextMenu"), this.ah = document.getElementById("altHint"), this.altHeld = !1, this.isAltDragging = !1, this.rbEl = null, this.rbSX = 0, this.rbSY = 0, this.rbActive = !1, this.isPanning = !1, this.pSX = 0, this.pSY = 0, this.sSX = 0, this.sSY = 0, this.init()
     }
-}
-else if ("back" === n) {
-    let block = L.getBlock(o);
-    if (block) {
-        let oldIndex = L.state.blocks.indexOf(block);
-        L.sendToBack(o);
-        B.push({
-            type: "order",
-            blockId: o,
-            oldIndex: oldIndex,
-            newIndex: 0,
-            undo: () => {
-                let b = L.state.blocks.shift();
-                L.state.blocks.splice(oldIndex, 0, b);
-                E.emit("state:changed");
-            },
-            redo: () => {
-                let b = L.state.blocks.splice(oldIndex, 1)[0];
-                L.state.blocks.unshift(b);
-                E.emit("state:changed");
-            }
+    init() {
+        document.addEventListener("keydown", e => {
+            "Alt" === e.key && (this.altHeld = !0, this.ws.classList.add("alt-drag"), this.ah.classList.add("visible"))
         });
+        // Удалён дублирующий обработчик Ctrl+/ и Escape, они есть глобально
+
+        document.addEventListener("keyup", e => {
+            "Alt" === e.key && (this.altHeld = !1, this.isAltDragging = !1, this.ws.classList.remove("alt-drag"), this.ah.classList.remove("visible"), this.cw.querySelectorAll(".block.alt-grab-hint").forEach(e => e.classList.remove("alt-grab-hint")))
+        }),
+
+        this.ws.addEventListener("pointerdown", e => {
+            e.target.closest(".block") || e.target.closest(".port-dot") || e.target.closest(".waypoint-circle") || e.target.closest(".label-drag-handle") || (0 === e.button ? (e.shiftKey || L.clearSelection(), this.rbActive = !0, this.rbSX = e.clientX, this.rbSY = e.clientY, this.ws.setPointerCapture(e.pointerId), e.preventDefault()) : 2 === e.button && (this.isPanning = !0, this.pSX = e.clientX, this.pSY = e.clientY, this.sSX = this.ws.scrollLeft, this.sSY = this.ws.scrollTop, this.ws.style.cursor = "grabbing", this.ws.setPointerCapture(e.pointerId), e.preventDefault()))
+        }), this.ws.addEventListener("pointermove", e => {
+            if (this.rbActive) {
+                let t = Math.abs(e.clientX - this.rbSX),
+                    n = Math.abs(e.clientY - this.rbSY);
+                if (t > 4 || n > 4) {
+                    this.rbEl || (this.rbEl = document.createElement("div"), this.rbEl.className = "rubber-band", this.cw.appendChild(this.rbEl));
+                    let t = this.ws.getBoundingClientRect(),
+                        n = Math.min(e.clientX, this.rbSX) - t.left + this.ws.scrollLeft,
+                        o = Math.min(e.clientY, this.rbSY) - t.top + this.ws.scrollTop,
+                        i = Math.abs(e.clientX - this.rbSX),
+                        s = Math.abs(e.clientY - this.rbSY);
+                    this.rbEl.style.cssText = `left:${n/L.state.zoom}px;top:${o/L.state.zoom}px;width:${i/L.state.zoom}px;height:${s/L.state.zoom}px`;
+                    let l = {
+                            x: n / L.state.zoom,
+                            y: o / L.state.zoom,
+                            width: i / L.state.zoom,
+                            height: s / L.state.zoom
+                        },
+                        a = new Set;
+                    L.state.blocks.forEach(e => {
+                        let t = document.getElementById(e.id);
+                        t && (e.x < l.x + l.width && e.x + e.width > l.x && e.y < l.y + l.height && e.y + e.height > l.y ? (a.add(e.id), t.classList.add("selected", "rb-preview")) : t.classList.remove("selected", "rb-preview"))
+                    }), L.state.selectedIds = a, A.updateGeneralUI()
+                }
+            }
+            this.isPanning && (this.ws.scrollLeft = this.sSX - (e.clientX - this.pSX) / L.state.zoom, this.ws.scrollTop = this.sSY - (e.clientY - this.pSY) / L.state.zoom, this.vp.clamp())
+        }), this.ws.addEventListener("pointerup", e => {
+            this.rbActive && (this.rbActive = !1, this.rbEl && (this.rbEl.remove(), this.rbEl = null, E.emit("selection:changed", L.state.selectedIds)), this.cw.querySelectorAll(".block.rb-preview").forEach(e => e.classList.remove("rb-preview"))), 2 === e.button && this.isPanning && (this.isPanning = !1, this.ws.style.cursor = "")
+        }), this.ws.addEventListener("contextmenu", e => {
+            e.preventDefault();
+            let t = e.target.closest(".block");
+            if (t) {
+                let n = t.dataset.blockId,
+                    o = L.getBlock(n);
+                if (o) {
+                    L.selectBlock(n), this.cm.querySelector('[data-action="lock"]').innerHTML = h(o.isLocked ? "lock_open" : "lock") + (o.isLocked ? " Разблокировать" : " Заблокировать"), this.cm.style.left = e.clientX + "px", this.cm.style.top = e.clientY + "px", this.cm.classList.add("open")
+                }
+            } else this.cm.classList.remove("open")
+        }), document.addEventListener("click", e => {
+            e.target.closest(".context-menu") || (document.getElementById("contextMenu").classList.remove("open"), document.getElementById("connContextMenu").classList.remove("open"))
+        }), this.cm.addEventListener("click", e => {
+            let t = e.target.closest(".ctx-item");
+            if (!t) return;
+            let n = t.dataset.action,
+                o = [...L.state.selectedIds][0];
+            if (o)
+                if (this.cm.classList.remove("open"), "edit" === n) de(o);
+                else if ("duplicate" === n) he();
+            else if ("delete" === n) re();
+            else if ("lock" === n) {
+                let e = L.getBlock(o);
+                e && L.lockBlock(o, !e.isLocked)
+            } else if ("front" === n) {
+                let block = L.getBlock(o);
+                if (block) {
+                    let oldIndex = L.state.blocks.indexOf(block);
+                    L.bringToFront(o);
+                    B.push({
+                        type: "order",
+                        blockId: o,
+                        oldIndex: oldIndex,
+                        newIndex: L.state.blocks.length - 1,
+                        undo: () => {
+                            let b = L.state.blocks.splice(L.state.blocks.length - 1, 1)[0];
+                            L.state.blocks.splice(oldIndex, 0, b);
+                            E.emit("state:changed");
+                        },
+                        redo: () => {
+                            let b = L.state.blocks.splice(oldIndex, 1)[0];
+                            L.state.blocks.push(b);
+                            E.emit("state:changed");
+                        }
+                    });
+                }
+            } else if ("back" === n) {
+                let block = L.getBlock(o);
+                if (block) {
+                    let oldIndex = L.state.blocks.indexOf(block);
+                    L.sendToBack(o);
+                    B.push({
+                        type: "order",
+                        blockId: o,
+                        oldIndex: oldIndex,
+                        newIndex: 0,
+                        undo: () => {
+                            let b = L.state.blocks.shift();
+                            L.state.blocks.splice(oldIndex, 0, b);
+                            E.emit("state:changed");
+                        },
+                        redo: () => {
+                            let b = L.state.blocks.splice(oldIndex, 1)[0];
+                            L.state.blocks.unshift(b);
+                            E.emit("state:changed");
+                        }
+                    });
+                }
+            }
+        }), document.getElementById("connContextMenu").addEventListener("click", e => {
+            let t = e.target.closest(".ctx-item");
+            if (!t) return;
+            let n = t.dataset.action,
+                o = document.getElementById("connContextMenu"),
+                i = o.dataset.connId;
+            if (o.classList.remove("open"), "delete-conn" === n) A.deleteSelectedConnection();
+            else if ("add-wp-conn" === n) {
+                let e = parseFloat(o.dataset.clientX),
+                    t = parseFloat(o.dataset.clientY);
+                if (isNaN(e) || isNaN(t)) return;
+                A.addWaypointFromEvent({
+                    clientX: e,
+                    clientY: t
+                }, i)
+            } else if ("add-label" === n) {
+                L.selectConnection(i);
+                let e = L.state.connections.find(e => e.id === i);
+                e && (N(e), document.getElementById("connectionPanel").classList.add("open"), setTimeout(() => {
+                    let e = document.getElementById("connLabel");
+                    e.focus(), e.select()
+                }, 150))
+            }
+        }), this.ws.addEventListener("lostpointercapture", () => {
+            this.isPanning && (this.isPanning = !1, this.ws.style.cursor = ""), this.isAltDragging && (this.isAltDragging = !1, this.ws.classList.remove("alt-drag"), this.ah.classList.remove("visible"), this.cw.querySelectorAll(".block.alt-grab-hint").forEach(e => e.classList.remove("alt-grab-hint"))), this.rbActive = !1, this.rbEl && (this.rbEl.remove(), this.rbEl = null)
+        }), document.addEventListener("keydown", e => {
+            if ($.classList.contains("open") || Q.classList.contains("open")) return void("Escape" === e.key && ce());
+            let n = L.state.selectedIds.size > 0,
+                o = null !== L.state.selectedConnectionId,
+                i = null !== L.state.selectedWaypoint,
+                s = "INPUT" === document.activeElement.tagName || "TEXTAREA" === document.activeElement.tagName || "SELECT" === document.activeElement.tagName;
+            if (e.ctrlKey && "KeyZ" === e.code && !e.shiftKey) return e.preventDefault(), void(B.undo() && b("↩ Отменено", "info"));
+            if (e.ctrlKey && ("KeyY" === e.code || e.shiftKey && "KeyZ" === e.code)) return e.preventDefault(), void(B.redo() && b("↪ Повторено", "info"));
+            if (e.ctrlKey && "KeyD" === e.code) return e.preventDefault(), void(n && he());
+            if (!s && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) && n) {
+                e.preventDefault();
+                let n = e.shiftKey ? t : 10,
+                    o = L.getSelectedIds(),
+                    i = [];
+                return o.forEach(t => {
+                    let o = L.getBlock(t);
+                    if (!o) return;
+                    let s = o.x,
+                        l = o.y;
+                    "ArrowLeft" === e.key && (s -= n), "ArrowRight" === e.key && (s += n), "ArrowUp" === e.key && (l -= n), "ArrowDown" === e.key && (l += n), i.push({
+                        blockId: t,
+                        ox: o.x,
+                        oy: o.y,
+                        nx: s,
+                        ny: l
+                    }), L.updateBlockPosition(t, s, l)
+                }), B.push({
+                    type: "arrow",
+                    undo() {
+                        i.forEach(e => L.updateBlockPosition(e.blockId, e.ox, e.oy)), E.emit("state:changed")
+                    },
+                    redo() {
+                        i.forEach(e => L.updateBlockPosition(e.blockId, e.nx, e.ny)), E.emit("state:changed")
+                    }
+                }), void E.emit("state:changed")
+            }
+            "Delete" !== e.key && "Backspace" !== e.key || !n || s ? "Delete" !== e.key && "Backspace" !== e.key || !o || n || s ? ("Delete" !== e.key && "Backspace" !== e.key || !i || s || !A.deleteSelectedWaypoint()) && ("Enter" !== e.key || !n || 1 !== L.state.selectedIds.size || s ? "Escape" !== e.key ? e.ctrlKey && "KeyA" === e.code && !s && (e.preventDefault(), L.state.selectedIds = new Set(L.state.blocks.map(e => e.id)), E.emit("selection:changed", L.state.selectedIds)) : L.clearSelection() : de([...L.state.selectedIds][0])) : A.deleteSelectedConnection() : re()
+        })
     }
-}
-}), document.getElementById("connContextMenu").addEventListener("click", e => {
-let t = e.target.closest(".ctx-item");
-if (!t) return;
-let n = t.dataset.action,
-o = document.getElementById("connContextMenu"),
-i = o.dataset.connId;
-if (o.classList.remove("open"), "delete-conn" === n) A.deleteSelectedConnection();
-else if ("add-wp-conn" === n) {
-let e = parseFloat(o.dataset.clientX),
-t = parseFloat(o.dataset.clientY);
-if (isNaN(e) || isNaN(t)) return;
-A.addWaypointFromEvent({
-clientX: e,
-clientY: t
-}, i)
-} else if ("add-label" === n) {
-L.selectConnection(i);
-let e = L.state.connections.find(e => e.id === i);
-e && (N(e), document.getElementById("connectionPanel").classList.add("open"), setTimeout(() => {
-let e = document.getElementById("connLabel");
-e.focus(), e.select()
-}, 150))
-}
-}), this.ws.addEventListener("lostpointercapture", () => {
-this.isPanning && (this.isPanning = !1, this.ws.style.cursor = ""), this.isAltDragging && (this.isAltDragging = !1, this.ws.classList.remove("alt-drag"), this.ah.classList.remove("visible"), this.cw.querySelectorAll(".block.alt-grab-hint").forEach(e => e.classList.remove("alt-grab-hint"))), this.rbActive = !1, this.rbEl && (this.rbEl.remove(), this.rbEl = null)
-}), document.addEventListener("keydown", e => {
-if ($.classList.contains("open") || Q.classList.contains("open")) return void("Escape" === e.key && ce());
-let n = L.state.selectedIds.size > 0,
-o = null !== L.state.selectedConnectionId,
-i = null !== L.state.selectedWaypoint,
-s = "INPUT" === document.activeElement.tagName || "TEXTAREA" === document.activeElement.tagName || "SELECT" === document.activeElement.tagName;
-if (e.ctrlKey && "KeyZ" === e.code && !e.shiftKey) return e.preventDefault(), void(B.undo() && b("↩ Отменено", "info"));
-if (e.ctrlKey && ("KeyY" === e.code || e.shiftKey && "KeyZ" === e.code)) return e.preventDefault(), void(B.redo() && b("↪ Повторено", "info"));
-if (e.ctrlKey && "KeyD" === e.code) return e.preventDefault(), void(n && he());
-if (!s && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) && n) {
-e.preventDefault();
-let n = e.shiftKey ? t : 10,
-o = L.getSelectedIds(),
-i = [];
-return o.forEach(t => {
-let o = L.getBlock(t);
-if (!o) return;
-let s = o.x,
-l = o.y;
-"ArrowLeft" === e.key && (s -= n), "ArrowRight" === e.key && (s += n), "ArrowUp" === e.key && (l -= n), "ArrowDown" === e.key && (l += n), i.push({
-blockId: t,
-ox: o.x,
-oy: o.y,
-nx: s,
-ny: l
-}), L.updateBlockPosition(t, s, l)
-}), B.push({
-type: "arrow",
-undo() {
-i.forEach(e => L.updateBlockPosition(e.blockId, e.ox, e.oy)), E.emit("state:changed")
-},
-redo() {
-i.forEach(e => L.updateBlockPosition(e.blockId, e.nx, e.ny)), E.emit("state:changed")
-}
-}), void E.emit("state:changed")
-}
-"Delete" !== e.key && "Backspace" !== e.key || !n || s ? "Delete" !== e.key && "Backspace" !== e.key || !o || n || s ? ("Delete" !== e.key && "Backspace" !== e.key || !i || s || !A.deleteSelectedWaypoint()) && ("Enter" !== e.key || !n || 1 !== L.state.selectedIds.size || s ? "Escape" !== e.key ? e.ctrlKey && "KeyA" === e.code && !s && (e.preventDefault(), L.state.selectedIds = new Set(L.state.blocks.map(e => e.id)), E.emit("selection:changed", L.state.selectedIds)) : L.clearSelection() : de([...L.state.selectedIds][0])) : A.deleteSelectedConnection() : re()
-})
-}
 }(W), A.init(), A.setupWaypointInteraction(), A.setupLabelDrag(), A.setupConnectionEdit(),
 function() {
 let e = localStorage.getItem(fe);
