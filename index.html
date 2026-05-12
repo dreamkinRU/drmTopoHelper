@@ -492,29 +492,39 @@ font-size: 0.9em;
 </div>
 
 <div id="waypointPanel">
-  <h3>Свойства точки <button class="btn" style="padding:2px 8px;font-size:11px" id="closeWaypointPanel">✕</button></h3>
-  <div class="section" id="wpSecAppearance">
-    <div class="section-header"><span>Оформление</span><span class="toggle-icon">▼</span></div>
-    <div class="section-content">
-      <label>Цвет</label><input type="color" id="wpColor" value="#e8a030">
-      <label>Форма</label><select id="wpShape"><option value="circle">Круг</option><option value="square">Квадрат</option><option value="diamond">Ромб</option></select>
-      <label>Размер</label>
-      <div class="size-selector" id="wpSizeSelector">
-        <button class="size-option active" data-wp-size="small">S</button>
-        <button class="size-option" data-wp-size="medium">M</button>
-        <button class="size-option" data-wp-size="large">L</button>
-      </div>
-    </div>
-  </div>
-    <div class="section" id="wpSecCurve">
-    <div class="section-header"><span>Настройки</span><span class="toggle-icon">▼</span></div>
-    <div class="section-content">
-      <label>Позиция (<span id="wpTVal">50%</span>)</label><input type="range" id="wpT" min="0" max="100" step="1" value="50">
-      <label>Притяжение (<span id="wpTensionVal">0.5</span>)</label><input type="range" id="wpTension" min="0" max="1" step="0.1" value="0.5">
-      <label>Асимметрия (<span id="wpSkewVal">0</span>)</label><input type="range" id="wpSkew" min="-1" max="1" step="0.1" value="0">
-      <label>Доворот касат. (<span id="wpAngleVal">0</span>°)</label><input type="range" id="wpAngle" min="-60" max="60" value="0">
-    </div>
-  </div>
+<h3>Свойства точки <button class="btn" style="padding:2px 8px;font-size:11px" id="closeWaypointPanel">✕</button></h3>
+<div class="section" id="wpSecAppearance">
+<div class="section-header"><span>Оформление</span><span class="toggle-icon">▼</span></div>
+<div class="section-content">
+<label>Цвет</label><input type="color" id="wpColor" value="#e8a030">
+<label>Форма</label>
+<div class="visual-selector" id="wpShapeSelector">
+<button class="visual-option marker-opt active" data-value="circle" title="Круг"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5"/></svg></button>
+<button class="visual-option marker-opt" data-value="square" title="Квадрат"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg></button>
+<button class="visual-option marker-opt" data-value="diamond" title="Ромб"><svg viewBox="0 0 20 20"><polygon points="10,3 17,10 10,17 3,10"/></svg></button>
+</div>
+<label>Размер</label>
+<div class="size-selector" id="wpSizeSelector">
+<button class="size-option active" data-wp-size="small">S</button>
+<button class="size-option" data-wp-size="medium">M</button>
+<button class="size-option" data-wp-size="large">L</button>
+</div>
+</div>
+</div>
+<div class="section" id="wpSecCurve">
+<div class="section-header"><span>Настройки</span><span class="toggle-icon">▼</span></div>
+<div class="section-content">
+<div id="wpTPositionGroup">
+<label>Позиция (<span id="wpTVal">50%</span>)</label><input type="range" id="wpT" min="0" max="100" step="1" value="50">
+</div>
+<label>Притяжение (<span id="wpTensionVal">0.5</span>)</label><input type="range" id="wpTension" min="0" max="1" step="0.1" value="0.5">
+<label>Асимметрия (<span id="wpSkewVal">0</span>)</label><input type="range" id="wpSkew" min="-1" max="1" step="0.1" value="0">
+<label>Доворот касат. (<span id="wpAngleVal">0</span>°)</label><input type="range" id="wpAngle" min="-60" max="60" value="0">
+<label>Режим точки</label>
+<button class="btn" id="wpToggleMode" style="margin-bottom:8px;">Сделать абсолютной</button>
+</div>
+</div>
+<div class="btn-row"><button class="btn btn-danger" id="btnDeleteWaypoint">Удалить точку</button></div>
 </div>
 
 <div class="toast-container" id="toastContainer"></div>
@@ -1425,25 +1435,30 @@ const renderer = {
             this._connElements.delete(id);
         }
     }
-    L.state.connections.forEach(t => {
-        let group = this._connElements.get(t.id);
-        if (group) { group.remove(); this._connElements.delete(t.id); }
-        group = document.createElementNS(SV, "g");
-        let n, o, i = x(t.from.blockId, t.from.itemIndex),
-            s = x(t.to.blockId, t.to.itemIndex);
-        if (!i || !s) return;
-        if (t.from.side && void 0 !== t.from.t && null !== t.from.t) n = y(i, t.from.side, t.from.t);
-        else { let e = { x: s.x + s.w / 2, y: s.y + s.h / 2 }; n = f(i, e.x, e.y) }
-        if (t.to.side && void 0 !== t.to.t && null !== t.to.t) o = y(s, t.to.side, t.to.t);
-        else { let e = { x: i.x + i.w / 2, y: i.y + i.h / 2 }; o = f(s, e.x, e.y) }
+    state.state.connections.forEach(conn => {
+        let group = this._connElements.get(conn.id);
+        if (group) { group.remove(); this._connElements.delete(conn.id); }
+        group = document.createElementNS(SVG_NS, "g");
 
-        // Единая обработка waypoints
-        let waypoints = t.waypoints || [], l = [], relIndices = [];
-        let allAbs = [n];
-        waypoints.forEach((wp, idx) => {
+        // Получаем d-строку и общую длину, игнорируя относительные точки
+        let pathData = buildConnectionPath(conn);
+        if (!pathData) return; // не удалось построить (блоки не найдены)
+        let dString = pathData.d;
+        let totalLen = pathData.totalLen;
+
+        // Вычисляем абсолютные позиции для всех waypoints (включая относительные)
+        let waypoints = conn.waypoints || [];
+        let absWaypoints = []; // массив {x, y, style} для каждого waypoint
+        let tempPath = document.createElementNS(SVG_NS, "path");
+        tempPath.setAttribute("d", dString);
+
+        waypoints.forEach(wp => {
+            let style = wp.style || {};
             if (wp.t !== undefined) {
-                allAbs.push(null);
-                relIndices.push({ idx, pos: allAbs.length - 1 });
+                // Относительная точка: находим позицию на кривой по параметру t
+                let targetDist = wp.t * totalLen;
+                let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+                absWaypoints.push({ x: pt.x, y: pt.y, style });
             } else {
                 // Абсолютная точка
                 let ax = wp.offsetX, ay = wp.offsetY;
@@ -1451,90 +1466,38 @@ const renderer = {
                     let b = state.getBlock(wp.blockId);
                     if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
                 }
-                allAbs.push({ x: ax, y: ay, style: wp.style || {} });
+                absWaypoints.push({ x: ax, y: ay, style });
             }
         });
-        allAbs.push(o);
-        l = allAbs.slice(1, -1).filter(p => p !== null);
 
-        // Строим кривую (используем только абсолютные точки)
-        let a = [n, ...l, o];
-        const c = a.map((e, t) => 0 === t || t === a.length - 1 ? {} : e.style || {}),
-            d = a.length, r = new Array(d),
-            h = (e, t) => { const n = Math.hypot(e, t) || 1; return { x: e / n, y: t / n } },
-            m = n.side || "right",
-            u = { top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
-        r[0] = u[m] || u.right;
-        const p = u[o.side || "left"] || u.left;
-        r[d - 1] = { x: -p.x, y: -p.y };
-        for (let e = 1; e < d - 1; e++) {
-            const t = a[e - 1], n = a[e], o = a[e + 1],
-                i = h(n.x - t.x, n.y - t.y), s = h(o.x - n.x, o.y - n.y),
-                l = c[e] || {}, d = l.skew || 0, m = l.angleAdjust || 0,
-                u = (1 + d) * i.x + (1 - d) * s.x, p = (1 + d) * i.y + (1 - d) * s.y,
-                g = Math.hypot(u, p) || 1;
-            let f = { x: u / g, y: p / g };
-            if (0 !== m) {
-                const e = m * Math.PI / 180, t = Math.cos(e), n = Math.sin(e);
-                f = { x: f.x * t - f.y * n, y: f.x * n + f.y * t }
-            }
-            r[e] = f
-        }
-        const g = [];
-        for (let e = 0; e < d - 1; e++) {
-            const t = a[e], n = a[e + 1],
-                o = Math.hypot(n.x - t.x, n.y - t.y),
-                i = Math.max(80, Math.min(250, .5 * o)),
-                s = 1 - (e > 0 && e < d - 1 ? void 0 !== c[e].tension ? c[e].tension : .5 : 0),
-                l = 1 - (e + 1 > 0 && e + 1 < d - 1 ? void 0 !== c[e + 1].tension ? c[e + 1].tension : .5 : 0),
-                h = t.x + r[e].x * i * s, m = t.y + r[e].y * i * s,
-                u = n.x - r[e + 1].x * i * l, p = n.y - r[e + 1].y * i * l;
-            0 === e ? g.push(`M ${t.x} ${t.y} C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`) : g.push(`C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`)
-        }
-        const k = g.join(" ");
+        // Отрисовка пути
+        let strokeColor = conn.stroke || "#e8a030", strokeW = conn.strokeWidth || 2;
+        let dash = conn.dashArray && conn.dashArray !== "none" ? conn.dashArray : "none";
+        let startMarker = conn.startMarker || "none", endMarker = conn.endMarker || "triangle";
+        let startMarkerUrl = startMarker !== "none" ? `url(#marker-${startMarker})` : "none";
+        let endMarkerUrl = endMarker !== "none" ? `url(#marker-${endMarker})` : "none";
 
-        // Если есть относительные точки, вычисляем их абсолютные позиции на кривой
-        if (relIndices.length > 0) {
-            let tempPath = document.createElementNS(SV, "path");
-            tempPath.setAttribute("d", k);
-            let totalLen = tempPath.getTotalLength() || 1;
-            relIndices.forEach(r => {
-                let wp = waypoints[r.idx];
-                let targetDist = wp.t * totalLen;
-                let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
-                // Вставляем абсолютную позицию в l (индекс в l соответствует индексу в waypoints)
-                let idxInL = r.idx; // напрямую, потому что l уже содержит только абсолютные точки, и их порядок совпадает с waypoints
-                if (idxInL < l.length) {
-                    l[idxInL] = { x: pt.x, y: pt.y, style: wp.style || {} };
-                } else {
-                    // На всякий случай добавляем в конец
-                    l.push({ x: pt.x, y: pt.y, style: wp.style || {} });
-                }
-            });
-        }
+        let path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", dString);
+        path.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === conn.id ? " selected" : ""));
+        path.setAttribute("stroke", strokeColor);
+        path.setAttribute("stroke-width", strokeW);
+        if (dash !== "none") path.setAttribute("stroke-dasharray", dash);
+        if (startMarkerUrl !== "none") path.setAttribute("marker-start", startMarkerUrl);
+        if (endMarkerUrl !== "none") path.setAttribute("marker-end", endMarkerUrl);
+        group.appendChild(path);
 
-        // Отрисовка кривой и всех точек
-        let v = t.stroke || "#e8a030", b = t.strokeWidth || 2,
-            w = t.dashArray && "none" !== t.dashArray ? t.dashArray : "none",
-            I = t.startMarker || "none", E = t.endMarker || "triangle",
-            B = "none" !== I ? `url(#marker-${I})` : "none",
-            C = "none" !== E ? `url(#marker-${E})` : "none",
-            M = document.createElementNS(SV, "path");
-        M.setAttribute("d", k);
-        M.setAttribute("class", "connection-line" + (L.state.selectedConnectionId === t.id ? " selected" : ""));
-        M.setAttribute("stroke", v); M.setAttribute("stroke-width", b);
-        "none" !== w && M.setAttribute("stroke-dasharray", w);
-        "none" !== B && M.setAttribute("marker-start", B);
-        "none" !== C && M.setAttribute("marker-end", C);
-        group.appendChild(M);
-        if (L.state.selectedConnectionId === t.id) {
-            let t = document.createElementNS(SV, "path");
-            t.setAttribute("d", k); t.setAttribute("class", "glow-line");
-            t.setAttribute("stroke", "#fff"); t.setAttribute("stroke-width", b + 2);
-            t.setAttribute("filter", "url(#neonGlow)");
-            t.style.animation = "neonPulse 2s ease-in-out infinite alternate";
-            "none" !== w && t.setAttribute("stroke-dasharray", w);
-            group.appendChild(t)
+        // Свечение для выделенной связи
+        if (state.state.selectedConnectionId === conn.id) {
+            let glow = document.createElementNS(SVG_NS, "path");
+            glow.setAttribute("d", dString);
+            glow.setAttribute("class", "glow-line");
+            glow.setAttribute("stroke", "#fff");
+            glow.setAttribute("stroke-width", strokeW + 2);
+            glow.setAttribute("filter", "url(#neonGlow)");
+            glow.style.animation = "neonPulse 2s ease-in-out infinite alternate";
+            if (dash !== "none") glow.setAttribute("stroke-dasharray", dash);
+            group.appendChild(glow);
         }
 
         // Невидимая широкая линия для кликабельности
@@ -2230,17 +2193,16 @@ function N(e) {
     document.getElementById("connLabel").value = e.label || "", document.getElementById("connLabelAngle").value = e.labelAngle || 0, document.getElementById("connLabelAngleVal").textContent = e.labelAngle || 0, document.getElementById("connLabelOffsetX").value = e.labelOffsetX || 0, document.getElementById("connLabelOffsetXVal").textContent = e.labelOffsetX || 0, document.getElementById("connLabelOffsetY").value = e.labelOffsetY || 0, document.getElementById("connLabelOffsetYVal").textContent = e.labelOffsetY || 0
 }
 
-  function Y(e, t, n) {
-  	const o = e.style || {};
-  	document.getElementById("wpColor").value = o.color || "#e8a030"; 
-// Подсветка выбранной формы в визуальном селекторе
-const shape = o.shape || "circle";
-document.querySelectorAll("#wpShapeSelector .visual-option").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.value === shape);
-});  	const i = o.size || "medium";
-  	document.querySelectorAll("#wpSizeSelector .size-option").forEach(e => {
-  		e.classList.toggle("active", e.dataset.wpSize === i)
-  	}), 
+function Y(e, t, n) {
+    const o = e.style || {};
+    document.getElementById("wpColor").value = o.color || "#e8a030"; 
+    const shape = o.shape || "circle";
+    document.querySelectorAll("#wpShapeSelector .visual-option").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.value === shape);
+    });  	const i = o.size || "medium";
+    document.querySelectorAll("#wpSizeSelector .size-option").forEach(e => {
+        e.classList.toggle("active", e.dataset.wpSize === i)
+    }), 
     document.getElementById("wpT").value = e.t !== undefined ? Math.round(e.t * 100) : 50;
     document.getElementById("wpTVal").textContent = (e.t !== undefined ? Math.round(e.t * 100) : 50) + '%';
     document.getElementById("wpTension").value = void 0 !== o.tension ? o.tension : .5; 
@@ -2249,9 +2211,20 @@ document.querySelectorAll("#wpShapeSelector .visual-option").forEach(btn => {
     document.getElementById("wpSkewVal").textContent = void 0 !== o.skew ? o.skew : 0; 
     document.getElementById("wpAngle").value = o.angleAdjust || 0; 
     document.getElementById("wpAngleVal").textContent = o.angleAdjust || 0; 
+    // Управление видимостью кнопки и поля t
+    const wpAbs = (e.offsetX !== undefined);
+    const toggleBtn = document.getElementById("wpToggleMode");
+    if (toggleBtn) {
+        toggleBtn.style.display = "";
+        toggleBtn.textContent = wpAbs ? "Сделать относительной" : "Сделать абсолютной";
+    }
+    const tGroup = document.getElementById("wpTPositionGroup");
+    if (tGroup) {
+        tGroup.style.display = wpAbs ? "none" : "";
+    }
     document.getElementById("waypointPanel").dataset.connId = t; 
     document.getElementById("waypointPanel").dataset.wpIndex = n
-    }
+}
 
 function X(e, t) {
     let n = state.state.selectedConnectionId;
@@ -2666,467 +2639,183 @@ function loadFromJSON(e, t) {
     }
 }
 
-  function ye() {
-  	try {
-  		let e = {
-  			version: "0.99",
-  			timestamp: (new Date).toISOString(),
-  			blockIdCounter: L.state.blockIdCounter,
-  			connectionIdCounter: L.state.connectionIdCounter,
+const STORAGE_KEY = "drmTopoHelper";
 
-  			blocks: L.state.blocks.map(e => ({
-  					id: e.id,
-  					x: e.x,
-  					y: e.y,
-  					width: e.width,
-  					height: e.height,
-  					bgColor: e.bgColor,
-  					isLocked: e.isLocked,
-  					title: e.title || "",
-  					imageUrl: e.imageUrl || "",
-  					items: e.items.map(e => ({
-  						...e,
-  						icon: r(e.icon)
-  					}))
-  				}))
-
-  				,
-  			connections: L.state.connections.map(e => ({
-  				id: e.id,
-  				from: e.from,
-  				to: e.to,
-  				waypoints: e.waypoints,
-  				stroke: e.stroke,
-  				strokeWidth: e.strokeWidth,
-  				dashArray: e.dashArray,
-  				startMarker: e.startMarker,
-  				endMarker: e.endMarker,
-  				label: e.label,
-  				labelAngle: e.labelAngle,
-  				labelOffsetX: e.labelOffsetX,
-  				labelOffsetY: e.labelOffsetY
-  			}))
-  		};
-  		localStorage.setItem(fe, JSON.stringify(e))
-  	} catch (e) {
-  		localStorage.removeItem(fe)
-  	}
-  }
-  document.getElementById("connStrokeColor").addEventListener("input", e => X("stroke", e.target.value)), document.getElementById("connStrokeWidth").addEventListener("input", e => {
-  		let t = parseInt(e.target.value) || 2;
-  		document.getElementById("connStrokeWidthVal").textContent = t, X("strokeWidth", t)
-  	}),
-
-  	function setupVisualSelector(containerId, prop) {
-  		const container = document.getElementById(containerId);
-  		if (!container) return;
-  		container.addEventListener('click', e => {
-  			const btn = e.target.closest('.visual-option');
-  			if (!btn) return;
-  			container.querySelectorAll('.visual-option').forEach(b => b.classList.remove('active'));
-  			btn.classList.add('active');
-  			X(prop, btn.dataset.value);
-  		});
-  	}
-  setupVisualSelector('dashArraySelector', 'dashArray'),
-  	setupVisualSelector('startMarkerSelector', 'startMarker'),
-  	setupVisualSelector('endMarkerSelector', 'endMarker'),
-
-  	document.getElementById("connLabel").addEventListener("input", e => X("label", e.target.value)), document.getElementById("connLabelAngle").addEventListener("input", e => {
-  		let t = parseInt(e.target.value) || 0;
-  		document.getElementById("connLabelAngleVal").textContent = t, X("labelAngle", t)
-  	}), document.getElementById("connLabelOffsetX").addEventListener("input", e => {
-  		let t = parseInt(e.target.value) || 0;
-  		document.getElementById("connLabelOffsetXVal").textContent = t, X("labelOffsetX", t)
-  	}), document.getElementById("connLabelOffsetY").addEventListener("input", e => {
-  		let t = parseInt(e.target.value) || 0;
-  		document.getElementById("connLabelOffsetYVal").textContent = t, X("labelOffsetY", t)
-  	}), document.getElementById("btnDeleteConnection").addEventListener("click", () => {
-  		A.deleteSelectedConnection(), document.getElementById("connectionPanel").classList.remove("open")
-  	}), document.getElementById("closeConnectionPanel").addEventListener("click", () => {
-  		document.getElementById("connectionPanel").classList.remove("open")
-  	}), document.querySelectorAll("#connectionPanel .section-header").forEach(e => {
-  		e.addEventListener("click", () => {
-  			e.parentElement.classList.toggle("collapsed")
-  		})
-  	}), document.getElementById("wpColor").addEventListener("input", e => T("color", e.target.value)), document.getElementById("wpShape").addEventListener("change", e => T("shape", e.target.value)), document.getElementById("wpSizeSelector").addEventListener("click", e => {
-  		const t = e.target.closest(".size-option");
-  		t && T("size", t.dataset.wpSize)
-  	}), document.getElementById("wpTension").addEventListener("input", e => {
-    const t = parseFloat(e.target.value);
-    document.getElementById("wpTensionVal").textContent = t;
-    T("tension", t);
-    // Обновляем панель (Y) для случая, если это относительная точка и нужно показать остальные поля
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (!isNaN(wpIdx) && connId) {
-        let conn = L.state.connections.find(c => c.id === connId);
-        if (conn && conn.waypoints && conn.waypoints[wpIdx]) {
-            Y(conn.waypoints[wpIdx], connId, wpIdx);
+function autoSave() {
+    try {
+        let e = {
+            version: "0.991",
+            timestamp: (new Date).toISOString(),
+            blockIdCounter: state.state.blockIdCounter,
+            connectionIdCounter: state.state.connectionIdCounter,
+            blocks: state.state.blocks.map(e => ({
+                id: e.id,
+                x: e.x,
+                y: e.y,
+                width: e.width,
+                height: e.height,
+                bgColor: e.bgColor,
+                isLocked: e.isLocked,
+                title: e.title || "",
+                imageUrl: e.imageUrl || "",
+                items: e.items.map(e => ({ ...e, icon: normalizeIconKey(e.icon) }))
+            })),
+            connections: state.state.connections.map(e => ({
+                id: e.id,
+                from: e.from,
+                to: e.to,
+                waypoints: e.waypoints,
+                stroke: e.stroke,
+                strokeWidth: e.strokeWidth,
+                dashArray: e.dashArray,
+                startMarker: e.startMarker,
+                endMarker: e.endMarker,
+                label: e.label,
+                labelAngle: e.labelAngle,
+                labelOffsetX: e.labelOffsetX,
+                labelOffsetY: e.labelOffsetY
+            }))
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(e))
+    } catch (e) {
+        localStorage.removeItem(STORAGE_KEY)
+    }
+}// Обработчики тулбара и диалогов
+document.getElementById("btnEdit").addEventListener("click", () => {
+    1 === state.state.selectedIds.size && openEditModal([...state.state.selectedIds][0])
+}), document.getElementById("btnDelete").addEventListener("click", deleteSelected), document.getElementById("btnDuplicate").addEventListener("click", duplicateSelected), document.getElementById("btnSave").addEventListener("click", () => {
+    if (!state.state.blocks.length) return void showToast("Нечего сохранять", "error");
+    let e = {
+            version: "0.991",
+            timestamp: (new Date).toISOString(),
+            blockIdCounter: state.state.blockIdCounter,
+            connectionIdCounter: state.state.connectionIdCounter,
+            blocks: state.state.blocks.map(e => ({
+                id: e.id,
+                x: e.x,
+                y: e.y,
+                width: e.width,
+                height: e.height,
+                bgColor: e.bgColor,
+                isLocked: e.isLocked,
+                title: e.title || "",
+                imageUrl: e.imageUrl || "",
+                items: e.items.map(e => ({
+                    ...e,
+                    icon: normalizeIconKey(e.icon)
+                }))
+            })),
+            connections: state.state.connections
+        },
+        t = new Blob([JSON.stringify(e, null, 2)], {
+            type: "application/json"
+        }),
+        n = document.createElement("a");
+    n.href = URL.createObjectURL(t), n.download = "drmTopoHelper_" + Date.now() + ".json", n.click(), showToast("Файл сохранён", "success")
+}), document.getElementById("btnLoad").addEventListener("click", () => document.getElementById("fileInput").click()), document.getElementById("fileInput").addEventListener("change", e => {
+    let t = e.target.files[0];
+    if (!t) return;
+    let n = new FileReader;
+    n.onload = e => {
+        try {
+            loadFromJSON(JSON.parse(e.target.result), "файл")
+        } catch (e) {
+            errorMessage.textContent = e.message, errorOverlay.classList.add("open")
         }
-    }
+    }, n.readAsText(t), e.target.value = ""
+}), document.getElementById("errorCancel").addEventListener("click", () => errorOverlay.classList.remove("open")), document.getElementById("errorRetry").addEventListener("click", () => {
+    errorOverlay.classList.remove("open"), document.getElementById("fileInput").click()
+}), document.getElementById("errorOverlay").addEventListener("click", e => {
+    if (e.target === errorOverlay) errorOverlay.classList.remove("open");
+}), document.getElementById("btnUndo").addEventListener("click", () => {
+    history.undo() && showToast("↩ Отменено", "info")
+}), document.getElementById("btnRedo").addEventListener("click", () => {
+    history.redo() && showToast("↪ Повторено", "info")
+}),
+document.getElementById("btnGrid").addEventListener("click", function() {
+    state.state.showGrid = !state.state.showGrid, workspace.classList.toggle("grid-hidden", !state.state.showGrid), this.classList.toggle("active", state.state.showGrid)
+}),
+document.getElementById("btnSnap").addEventListener("click", () => {
+    state.state.snapToGrid = !state.state.snapToGrid, document.getElementById("btnSnap").classList.toggle("active", state.state.snapToGrid), document.getElementById("canvasWrapper").classList.toggle("snap-active", state.state.snapToGrid), showToast(state.state.snapToGrid ? "Привязка включена" : "Привязка выключена", "info")
+}),
+document.getElementById("btnConnections").addEventListener("click", function() {
+    state.state.connectionMode = !state.state.connectionMode, this.classList.toggle("active", state.state.connectionMode), document.getElementById("workspace").classList.toggle("connection-mode", state.state.connectionMode), state.state.connectionMode ? (document.getElementById("workspace").style.cursor = "crosshair", showToast("Режим связей включен. Перетаскивайте от портов блоков.", "info")) : (document.getElementById("workspace").style.cursor = "", renderer.hidePort(document.getElementById("sourcePort")), renderer.hidePort(document.getElementById("targetPort")), showToast("Режим связей выключен", "info"))
 });
-    document.getElementById("wpT").addEventListener("input", e => {
-    const val = parseInt(e.target.value);
-    document.getElementById("wpTVal").textContent = val + '%';
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (isNaN(wpIdx) || !connId) return;
-    let conn = L.state.connections.find(c => c.id === connId);
-    if (!conn || !conn.waypoints || !conn.waypoints[wpIdx]) return;
-    conn.waypoints[wpIdx].t = val / 100;
-    A.renderConnections();
-    E.emit("state:changed");
-    Y(conn.waypoints[wpIdx], connId, wpIdx);
-});
-    // Обработчики модального окна "Помощь"
-document.getElementById("btnHelp").addEventListener("click", () => {
-    document.getElementById("shortcutsModal").classList.toggle("open");
-});
-document.getElementById("closeShortcuts").addEventListener("click", () => {
-    document.getElementById("shortcutsModal").classList.remove("open");
-});
-document.getElementById("shortcutsModal").addEventListener("click", e => {
-    if (e.target === document.getElementById("shortcutsModal")) {
-        document.getElementById("shortcutsModal").classList.remove("open");
+let templatesMenuEl = document.getElementById("templatesMenu");
+[{
+    name: "РМ+Монитор",
+    icon: "windows",
+    config: {
+        bgColor: "#1f1f2d",
+        title: "РМ+Монитор",
+        items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }]
     }
-});
-
-// Глобальные горячие клавиши для подсказки
-document.addEventListener("keydown", e => {
-    if ((e.ctrlKey && e.code === "Slash") || (e.key === "?" && !e.ctrlKey && !e.metaKey)) {
-        e.preventDefault();
-        document.getElementById("shortcutsModal").classList.toggle("open");
+}, {
+    name: "РМ+Монитор+ИБП",
+    icon: "windows",
+    config: {
+        bgColor: "#1f1f2d",
+        title: "РМ+Монитор+ИБП",
+        items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }]
     }
-    if (e.key === "Escape") {
-        const modal = document.getElementById("shortcutsModal");
-        if (modal && modal.classList.contains("open")) {
-            modal.classList.remove("open");
-        }
+}, {
+    name: "РМ+Монитор+ИПБ+cШК",
+    icon: "windows",
+    config: {
+        bgColor: "#1f1f2d",
+        title: "РМ+Монитор+ИПБ+cШК",
+        items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }]
     }
-});    
-
-    document.getElementById("wpSkew").addEventListener("input", e => {
-    const t = parseFloat(e.target.value);
-    document.getElementById("wpSkewVal").textContent = t;
-    T("skew", t);
-    // дополнительно обновим панель (T уже вызывает Y, но оставим для страховки)
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (!isNaN(wpIdx) && connId) {
-        let conn = L.state.connections.find(c => c.id === connId);
-        if (conn && conn.waypoints && conn.waypoints[wpIdx]) {
-            Y(conn.waypoints[wpIdx], connId, wpIdx);
-        }
+}, {
+    name: "РМ+Монитор+ИПБ+cШК+пШК",
+    icon: "windows",
+    config: {
+        bgColor: "#1f1f2d",
+        title: "РМ+Монитор+ИПБ+cШК+пШК",
+        items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }, { icon: "printer_shk", label: "Принтер ШК", invNum: "0" }]
     }
-});
- document.getElementById("wpAngle").addEventListener("input", e => {
-    const t = parseInt(e.target.value);
-    document.getElementById("wpAngleVal").textContent = t;
-    T("angleAdjust", t);
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (!isNaN(wpIdx) && connId) {
-        let conn = L.state.connections.find(c => c.id === connId);
-        if (conn && conn.waypoints && conn.waypoints[wpIdx]) {
-            Y(conn.waypoints[wpIdx], connId, wpIdx);
-        }
+}, {
+    name: "РМ+Монитор",
+    icon: "linux",
+    config: {
+        bgColor: "#1f2d1f",
+        title: "РМ+Монитор",
+        items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }]
     }
-}); document.getElementById("closeWaypointPanel").addEventListener("click", () => {
-  		document.getElementById("waypointPanel").classList.remove("open"), L.state.selectedWaypoint = null, E.emit("state:changed")
-  	}), document.querySelectorAll("#waypointPanel .section-header").forEach(e => {
-  		e.addEventListener("click", () => e.parentElement.classList.toggle("collapsed"))
-  	}), document.querySelectorAll(".drm-icon-slot[data-icon]").forEach(e => {
-  		let t = document.createElement("template");
-  		t.innerHTML = h(e.getAttribute("data-icon") || "", e.getAttribute("style") || "").trim();
-  		let n = t.content.firstElementChild;
-  		n && e.replaceWith(n)
-  	}),
-
-  	document.getElementById("sizeSelector").addEventListener("click", e => {
-  		let t = e.target.closest(".size-option");
-  		if (!t) return;
-  		let n = t.dataset.size,
-  			o = i[n],
-  			l = "block_" + ++L.state.blockIdCounter,
-  			a = me(o.w, o.h),
-  			c = {
-  				id: l,
-  				x: a.x,
-  				y: a.y,
-  				width: o.w,
-  				height: o.h,
-  				bgColor: s[Math.floor(8 * Math.random())],
-  				isLocked: !1,
-  				title: "",
-  				items: []
-  			};
-  		L.addBlock(c), L.selectBlock(l), setTimeout(() => {
-  			O.scrollLeft = Math.max(0, c.x * L.state.zoom - O.clientWidth / 2 + c.width * L.state.zoom / 2), O.scrollTop = Math.max(0, c.y * L.state.zoom - O.clientHeight / 2 + c.height * L.state.zoom / 2)
-  		}, 50), B.push({
-  			type: "create",
-  			blockId: l,
-  			undo: () => {
-  				L.state.blocks = L.state.blocks.filter(e => e.id !== l), document.getElementById(l)?.remove(), L.clearSelection(), E.emit("state:changed")
-  			},
-  			redo: () => {
-  				L.addBlock(c), L.selectBlock(l)
-  			}
-  		}), b("Блок создан", "success")
-  	}),
-
-  	document.getElementById("btnEdit").addEventListener("click", () => {
-  		1 === L.state.selectedIds.size && de([...L.state.selectedIds][0])
-  	}), document.getElementById("btnDelete").addEventListener("click", re), document.getElementById("btnDuplicate").addEventListener("click", he), document.getElementById("btnSave").addEventListener("click", () => {
-  		if (!L.state.blocks.length) return void b("Нечего сохранять", "error");
-  		let e = {
-  				version: "1.50",
-  				timestamp: (new Date).toISOString(),
-  				blockIdCounter: L.state.blockIdCounter,
-  				connectionIdCounter: L.state.connectionIdCounter,
-  				blocks: L.state.blocks.map(e => ({
-  					id: e.id,
-  					x: e.x,
-  					y: e.y,
-  					width: e.width,
-  					height: e.height,
-  					bgColor: e.bgColor,
-  					isLocked: e.isLocked,
-  					title: e.title || "",
-  					imageUrl: e.imageUrl || "",
-  					items: e.items.map(e => ({
-  						...e,
-  						icon: r(e.icon)
-  					}))
-  				})),
-  				connections: L.state.connections
-  			},
-  			t = new Blob([JSON.stringify(e, null, 2)], {
-  				type: "application/json"
-  			}),
-  			n = document.createElement("a");
-  		n.href = URL.createObjectURL(t), n.download = "drmTopoHelper_" + Date.now() + ".json", n.click(), b("Файл сохранён", "success")
-  	}), document.getElementById("btnLoad").addEventListener("click", () => document.getElementById("fileInput").click()), document.getElementById("fileInput").addEventListener("change", e => {
-  		let t = e.target.files[0];
-  		if (!t) return;
-  		let n = new FileReader;
-  		n.onload = e => {
-  			try {
-  				ge(JSON.parse(e.target.result), "файл")
-  			} catch (e) {
-  				ee.textContent = e.message, Q.classList.add("open")
-  			}
-  		}, n.readAsText(t), e.target.value = ""
-  	}), document.getElementById("errorCancel").addEventListener("click", () => Q.classList.remove("open")), document.getElementById("errorRetry").addEventListener("click", () => {
-  		Q.classList.remove("open"), document.getElementById("fileInput").click()
-  	}), document.getElementById("btnUndo").addEventListener("click", () => {
-  		B.undo() && b("↩ Отменено", "info")
-  	}), document.getElementById("btnRedo").addEventListener("click", () => {
-  		B.redo() && b("↪ Повторено", "info")
-  	}),
-
-  	document.getElementById("btnGrid").addEventListener("click", function() {
-  		L.state.showGrid = !L.state.showGrid, O.classList.toggle("grid-hidden", !L.state.showGrid), this.classList.toggle("active", L.state.showGrid)
-  	}),
-
-  	document.getElementById("btnSnap").addEventListener("click", () => {
-  		L.state.snapToGrid = !L.state.snapToGrid, document.getElementById("btnSnap").classList.toggle("active", L.state.snapToGrid), document.getElementById("canvasWrapper").classList.toggle("snap-active", L.state.snapToGrid), b(L.state.snapToGrid ? "Привязка включена" : "Привязка выключена", "info")
-  	}),
-
-  	document.getElementById("btnConnections").addEventListener("click", function() {
-  		L.state.connectionMode = !L.state.connectionMode, this.classList.toggle("active", L.state.connectionMode), document.getElementById("workspace").classList.toggle("connection-mode", L.state.connectionMode), L.state.connectionMode ? (document.getElementById("workspace").style.cursor = "crosshair", b("Режим связей включен. Перетаскивайте от портов блоков.", "info")) : (document.getElementById("workspace").style.cursor = "", A.hidePort(document.getElementById("sourcePort")), A.hidePort(document.getElementById("targetPort")), b("Режим связей выключен", "info"))
-  	});
-  let xe = document.getElementById("templatesMenu");
-  [{
-  	name: "РМ+Монитор",
-  	icon: "windows",
-  	config: {
-  		bgColor: "#1f1f2d",
-  		title: "РМ+Монитор",
-  		items: [{
-  			icon: "windows",
-  			label: "Windows ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}]
-  	}
-  }, {
-  	name: "РМ+Монитор+ИБП",
-  	icon: "windows",
-  	config: {
-  		bgColor: "#1f1f2d",
-  		title: "РМ+Монитор+ИБП",
-  		items: [{
-  			icon: "windows",
-  			label: "Windows ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}, {
-  			icon: "ups",
-  			label: "ИБП",
-  			invNum: "0"
-  		}]
-  	}
-  }, {
-  	name: "РМ+Монитор+ИПБ+cШК",
-  	icon: "windows",
-  	config: {
-  		bgColor: "#1f1f2d",
-  		title: "РМ+Монитор+ИПБ+cШК",
-  		items: [{
-  			icon: "windows",
-  			label: "Windows ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}, {
-  			icon: "ups",
-  			label: "ИБП",
-  			invNum: "0"
-  		}, {
-  			icon: "scanner_shk",
-  			label: "Сканер ШК",
-  			invNum: "0"
-  		}]
-  	}
-  }, {
-  	name: "РМ+Монитор+ИПБ+cШК+пШК",
-  	icon: "windows",
-  	config: {
-  		bgColor: "#1f1f2d",
-  		title: "РМ+Монитор+ИПБ+cШК+пШК",
-  		items: [{
-  			icon: "windows",
-  			label: "Windows ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}, {
-  			icon: "ups",
-  			label: "ИБП",
-  			invNum: "0"
-  		}, {
-  			icon: "scanner_shk",
-  			label: "Сканер ШК",
-  			invNum: "0"
-  		}, {
-  			icon: "printer_shk",
-  			label: "Принтер ШК",
-  			invNum: "0"
-  		}]
-  	}
-  }, {
-  	name: "РМ+Монитор",
-  	icon: "linux",
-  	config: {
-  		bgColor: "#1f2d1f",
-  		title: "РМ+Монитор",
-  		items: [{
-  			icon: "linux",
-  			label: "Linux ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}]
-  	}
-  }, {
-  	name: "РМ+Монитор+ИБП",
-  	icon: "linux",
-  	config: {
-  		bgColor: "#1f2d1f",
-  		title: "РМ+Монитор+ИБП",
-  		items: [{
-  			icon: "linux",
-  			label: "Linux ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}, {
-  			icon: "ups",
-  			label: "ИБП",
-  			invNum: "0"
-  		}]
-  	}
-  }, {
-  	name: "РМ+Монитор+ИПБ+cШК",
-  	icon: "linux",
-  	config: {
-  		bgColor: "#1f2d1f",
-  		title: "РМ+Монитор+ИПБ+cШК",
-  		items: [{
-  			icon: "linux",
-  			label: "Linux ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}, {
-  			icon: "ups",
-  			label: "ИБП",
-  			invNum: "0"
-  		}, {
-  			icon: "scanner_shk",
-  			label: "Сканер ШК",
-  			invNum: "0"
-  		}]
-  	}
-  }, {
-  	name: "РМ+Монитор+ИПБ+cШК+пШК",
-  	icon: "linux",
-  	config: {
-  		bgColor: "#1f2d1f",
-  		title: "РМ+Монитор+ИПБ+cШК+пШК",
-  		items: [{
-  			icon: "linux",
-  			label: "Linux ПК",
-  			invNum: "0"
-  		}, {
-  			icon: "desktop",
-  			label: "Монитор",
-  			invNum: "0"
-  		}, {
-  			icon: "ups",
-  			label: "ИБП",
-  			invNum: "0"
-  		}, {
-  			icon: "scanner_shk",
-  			label: "Сканер ШК",
-  			invNum: "0"
-  		}, {
-  			icon: "printer_shk",
-  			label: "Принтер ШК",
-  			invNum: "0"
-  		}]
-  	}
-  }].forEach(e => {
-  		let t = document.createElement("button");
-  		t.className = "template-option", t.innerHTML = h(e.icon) + "<span>" + e.name + "</span>", t.addEventListener("click", () => {
-  			pe(e), xe.classList.remove("open")
-  		}), xe.appendChild(t)
-  	}), document.getElementById("btnTemplates").addEventListener("click", e => {
-  		e.stopPropagation(), xe.classList.toggle("open")
-  	}), document.addEventListener("click", e => {
-  		e.target.closest("#templatesMenu") || e.target.closest("#btnTemplates") || xe.classList.remove("open")
-  	}),
+}, {
+    name: "РМ+Монитор+ИБП",
+    icon: "linux",
+    config: {
+        bgColor: "#1f2d1f",
+        title: "РМ+Монитор+ИБП",
+        items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }]
+    }
+}, {
+    name: "РМ+Монитор+ИПБ+cШК",
+    icon: "linux",
+    config: {
+        bgColor: "#1f2d1f",
+        title: "РМ+Монитор+ИПБ+cШК",
+        items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }]
+    }
+}, {
+    name: "РМ+Монитор+ИПБ+cШК+пШК",
+    icon: "linux",
+    config: {
+        bgColor: "#1f2d1f",
+        title: "РМ+Монитор+ИПБ+cШК+пШК",
+        items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }, { icon: "printer_shk", label: "Принтер ШК", invNum: "0" }]
+    }
+}].forEach(e => {
+    let t = document.createElement("button");
+    t.className = "template-option", t.innerHTML = renderIconHTML(e.icon) + "<span>" + e.name + "</span>", t.addEventListener("click", () => {
+        addTemplate(e), templatesMenuEl.classList.remove("open")
+    }), templatesMenuEl.appendChild(t)
+}), document.getElementById("btnTemplates").addEventListener("click", e => {
+    e.stopPropagation(), templatesMenuEl.classList.toggle("open")
+}), document.addEventListener("click", e => {
+    e.target.closest("#templatesMenu") || e.target.closest("#btnTemplates") || templatesMenuEl.classList.remove("open")
+}),
 
 editModal.addEventListener("click", e => {
     if (e.target !== editModal) return;
