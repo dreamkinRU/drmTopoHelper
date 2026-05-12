@@ -2967,20 +2967,6 @@ document.getElementById("shortcutsModal").addEventListener("click", e => {
     }
 });
 
-// Глобальные горячие клавиши для подсказки
-document.addEventListener("keydown", e => {
-    if ((e.ctrlKey && e.code === "Slash") || (e.key === "?" && !e.ctrlKey && !e.metaKey)) {
-        e.preventDefault();
-        document.getElementById("shortcutsModal").classList.toggle("open");
-    }
-    if (e.key === "Escape") {
-        const modal = document.getElementById("shortcutsModal");
-        if (modal && modal.classList.contains("open")) {
-            modal.classList.remove("open");
-        }
-    }
-});    
-
     document.getElementById("wpSkew").addEventListener("input", e => {
     const t = parseFloat(e.target.value);
     document.getElementById("wpSkewVal").textContent = t;
