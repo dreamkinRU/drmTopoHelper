@@ -227,11 +227,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 
 /* SVG Layers */
 #guidesSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:var(--z-guides);overflow:visible}
-#itemConnSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:var(--z-connections);overflow:visible}
 #tempSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:calc(var(--z-connections) + 10);overflow:visible}
-.item-conn-line{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:6 4;pointer-events:none;opacity:.85}
-.item-conn-line.selected{stroke:var(--danger);stroke-width:3;stroke-dasharray:6 4;opacity:1}
-.item-conn-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
 .guide-line{stroke:#e8a030;stroke-width:1;stroke-dasharray:4 4;opacity:0}
 .connection-line{fill:none;stroke:var(--accent)}
 .connection-line.selected{stroke:var(--accent)}
@@ -552,7 +548,7 @@ font-size: 0.9em;
 </div>
 </div>
 <script>
-var SV = "http://www.w3.org/2000/svg";
+const SVG_NS = "http://www.w3.org/2000/svg";
 let lastAutoLabel = '';
 
 const CANVAS_PADDING = 100,
@@ -688,6 +684,66 @@ function buildCubicCurve(e, t, n, o) {
     return `M ${e.x} ${e.y} C ${e.x+a.x*s} ${e.y+a.y*s}, ${n.x+c.x*s} ${n.y+c.y*s}, ${n.x} ${n.y}`;
 }
 
+function buildCurvePath(pts, startTangent, endTangent) {
+    // pts – массив {x, y, style?}, startTangent/endTangent – {x, y}
+    const d = pts.length;
+    const tangents = new Array(d);
+    tangents[0] = startTangent;
+    tangents[d - 1] = endTangent;
+
+    // Вычисляем внутренние касательные
+    const dir = (p0, p1) => {
+        const len = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
+        return { x: (p1.x - p0.x) / len, y: (p1.y - p0.y) / len };
+    };
+    for (let i = 1; i < d - 1; i++) {
+        const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1];
+        const v1 = dir(p0, p1), v2 = dir(p1, p2);
+        const style = pts[i].style || {};
+        const skew = style.skew || 0;
+        const angleAdjust = style.angleAdjust || 0;
+        let tx = (1 + skew) * v1.x + (1 - skew) * v2.x;
+        let ty = (1 + skew) * v1.y + (1 - skew) * v2.y;
+        const len = Math.hypot(tx, ty) || 1;
+        let tangent = { x: tx / len, y: ty / len };
+        if (angleAdjust !== 0) {
+            const rad = angleAdjust * Math.PI / 180;
+            const cos = Math.cos(rad), sin = Math.sin(rad);
+            tangent = {
+                x: tangent.x * cos - tangent.y * sin,
+                y: tangent.x * sin + tangent.y * cos
+            };
+        }
+        tangents[i] = tangent;
+    }
+
+    // Строим d-строку
+    let dStr = '';
+    for (let i = 0; i < d - 1; i++) {
+        const p1 = pts[i], p2 = pts[i + 1];
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const baseDist = Math.max(80, Math.min(250, 0.5 * dist));
+        const tension1 = (i > 0 && pts[i].style && pts[i].style.tension != null) ? pts[i].style.tension : 0.5;
+        const tension2 = (i + 1 < d - 1 && pts[i + 1].style && pts[i + 1].style.tension != null) ? pts[i + 1].style.tension : 0.5;
+        const cp1x = p1.x + tangents[i].x * baseDist * (1 - tension1);
+        const cp1y = p1.y + tangents[i].y * baseDist * (1 - tension1);
+        const cp2x = p2.x - tangents[i + 1].x * baseDist * (1 - tension2);
+        const cp2y = p2.y - tangents[i + 1].y * baseDist * (1 - tension2);
+        if (i === 0) {
+            dStr += `M ${p1.x} ${p1.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} `;
+        } else {
+            dStr += `C ${cp1x} ${cp1y} ${cp2x} ${cp2y} `;
+        }
+        if (i === d - 2) dStr += `${p2.x} ${p2.y}`; // последняя точка
+    }
+
+    // Измеряем длину
+    const tempPath = document.createElementNS(SVG_NS, "path");
+    tempPath.setAttribute("d", dStr);
+    const totalLen = tempPath.getTotalLength() || 1;
+    return { d: dStr, totalLen };
+}
+
 function buildConnectionPath(conn) {
     let from = getBlockRectById(conn.from.blockId, conn.from.itemIndex);
     let to = getBlockRectById(conn.to.blockId, conn.to.itemIndex);
@@ -711,59 +767,11 @@ function buildConnectionPath(conn) {
     }
     pts.push(o);
 
-    let d = pts.length;
-    let tangents = new Array(d);
-    let sides = { top: { x:0, y:-1 }, bottom: { x:0, y:1 }, left: { x:-1, y:0 }, right: { x:1, y:0 } };
-    tangents[0] = sides[n.side || 'right'] || sides.right;
-    tangents[d-1] = { x: - (sides[o.side || 'left'] || sides.left).x, y: - (sides[o.side || 'left'] || sides.left).y };
-    for (let i = 1; i < d-1; i++) {
-        let p0 = pts[i-1], p1 = pts[i], p2 = pts[i+1];
-        let dx1 = p1.x - p0.x, dy1 = p1.y - p0.y;
-        let dx2 = p2.x - p1.x, dy2 = p2.y - p1.y;
-        let len1 = Math.hypot(dx1, dy1) || 1;
-        let len2 = Math.hypot(dx2, dy2) || 1;
-        let nx1 = dx1/len1, ny1 = dy1/len1;
-        let nx2 = dx2/len2, ny2 = dy2/len2;
-        let style = p1.style || {};
-        let skew = style.skew || 0;
-        let angleAdjust = style.angleAdjust || 0;
-        let tx = (1+skew)*nx1 + (1-skew)*nx2;
-        let ty = (1+skew)*ny1 + (1-skew)*ny2;
-        let tl = Math.hypot(tx, ty) || 1;
-        let tangent = { x: tx/tl, y: ty/tl };
-        if (angleAdjust !== 0) {
-            let rad = angleAdjust * Math.PI / 180;
-            let cos = Math.cos(rad), sin = Math.sin(rad);
-            tangent = {
-                x: tangent.x * cos - tangent.y * sin,
-                y: tangent.x * sin + tangent.y * cos
-            };
-        }
-        tangents[i] = tangent;
-    }
+    const startTangent = { top: { x:0, y:-1 }, bottom: { x:0, y:1 }, left: { x:-1, y:0 }, right: { x:1, y:0 } }[n.side || 'right'] || { x:1, y:0 };
+    const endTangent = { top: { x:0, y:-1 }, bottom: { x:0, y:1 }, left: { x:-1, y:0 }, right: { x:1, y:0 } }[o.side || 'left'] || { x:-1, y:0 };
+    const endTanInv = { x: -endTangent.x, y: -endTangent.y };
 
-    let dStr = '';
-    for (let i = 0; i < d-1; i++) {
-        let p1 = pts[i], p2 = pts[i+1];
-        let dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        let baseDist = Math.max(80, Math.min(250, 0.5 * dist));
-        let tension1 = (i > 0 && pts[i].style && pts[i].style.tension != null) ? pts[i].style.tension : 0.5;
-        let tension2 = (i+1 < d-1 && pts[i+1].style && pts[i+1].style.tension != null) ? pts[i+1].style.tension : 0.5;
-        let cp1x = p1.x + tangents[i].x * baseDist * (1 - tension1);
-        let cp1y = p1.y + tangents[i].y * baseDist * (1 - tension1);
-        let cp2x = p2.x - tangents[i+1].x * baseDist * (1 - tension2);
-        let cp2y = p2.y - tangents[i+1].y * baseDist * (1 - tension2);
-        if (i === 0) {
-            dStr += `M ${p1.x} ${p1.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y} `;
-        } else {
-            dStr += `C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y} `;
-        }
-    }
-
-    let tempPath = document.createElementNS(SV, "path");
-    tempPath.setAttribute("d", dStr);
-    let totalLen = tempPath.getTotalLength() || 1;
-    return { d: dStr, totalLen: totalLen };
+    return buildCurvePath(pts, startTangent, endTanInv);
 }
 
 function getBlockRectById(e, t) {
@@ -1095,7 +1103,7 @@ const renderer = {
         let t = state.state.selectedIds.size > 0,
             n = null !== state.state.selectedConnectionId,
             o = null !== state.state.selectedWaypoint;
-        var i;
+        let i;
         document.getElementById("btnEdit").disabled = !t, document.getElementById("btnDelete").disabled = !(t || n || o), document.getElementById("btnDuplicate").disabled = !t, i = () => {
             this.updateCanvasSize(), zoomController && zoomController.updateMinimap()
         }, rafId || (rafId = requestAnimationFrame(() => {
@@ -1418,214 +1426,186 @@ const renderer = {
         document.addEventListener("pointermove", p), document.addEventListener("pointerup", f)
     },
     renderConnections: function() {
-        let e = document.getElementById("guidesSvg");
-        if (!this._connElements) this._connElements = new Map;
-        const existingIds = new Set(state.state.connections.map(c => c.id));
-        for (const [id, group] of this._connElements) {
-            if (!existingIds.has(id)) {
-                group.remove();
-                this._connElements.delete(id);
-            }
+    let svg = document.getElementById("guidesSvg");
+    if (!this._connElements) this._connElements = new Map;
+    const existingIds = new Set(state.state.connections.map(c => c.id));
+    for (const [id, group] of this._connElements) {
+        if (!existingIds.has(id)) {
+            group.remove();
+            this._connElements.delete(id);
         }
-        state.state.connections.forEach(t => {
-            let group = this._connElements.get(t.id);
-            if (group) { group.remove(); this._connElements.delete(t.id); }
-            group = document.createElementNS(SV, "g");
-            let n, o, i = getBlockRectById(t.from.blockId, t.from.itemIndex),
-                s = getBlockRectById(t.to.blockId, t.to.itemIndex);
-            if (!i || !s) return;
-            if (t.from.side && void 0 !== t.from.t && null !== t.from.t) n = getPortPoint(i, t.from.side, t.from.t);
-            else { let e = { x: s.x + s.w / 2, y: s.y + s.h / 2 }; n = closestPointOnRect(i, e.x, e.y) }
-            if (t.to.side && void 0 !== t.to.t && null !== t.to.t) o = getPortPoint(s, t.to.side, t.to.t);
-            else { let e = { x: i.x + i.w / 2, y: i.y + i.h / 2 }; o = closestPointOnRect(s, e.x, e.y) }
+    }
+    state.state.connections.forEach(conn => {
+        let group = this._connElements.get(conn.id);
+        if (group) { group.remove(); this._connElements.delete(conn.id); }
+        group = document.createElementNS(SVG_NS, "g");
 
-            let waypoints = t.waypoints || [], l = [], relIndices = [];
-            let allAbs = [n];
-            waypoints.forEach((wp, idx) => {
-                if (wp.t !== undefined) {
-                    allAbs.push(null);
-                    relIndices.push({ idx, pos: allAbs.length - 1 });
-                } else {
-                    let ax = wp.offsetX, ay = wp.offsetY;
-                    if (wp.blockId) {
-                        let b = state.getBlock(wp.blockId);
-                        if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
-                    }
-                    allAbs.push({ x: ax, y: ay, style: wp.style || {} });
-                }
-            });
-            allAbs.push(o);
-            l = allAbs.slice(1, -1).filter(p => p !== null);
+        // Получаем d-строку и общую длину, игнорируя относительные точки
+        let pathData = buildConnectionPath(conn);
+        if (!pathData) return; // не удалось построить (блоки не найдены)
+        let dString = pathData.d;
+        let totalLen = pathData.totalLen;
 
-            let a = [n, ...l, o];
-            const c = a.map((e, t) => 0 === t || t === a.length - 1 ? {} : e.style || {}),
-                d = a.length, r = new Array(d),
-                h = (e, t) => { const n = Math.hypot(e, t) || 1; return { x: e / n, y: t / n } },
-                m = n.side || "right",
-                u = { top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
-            r[0] = u[m] || u.right;
-            const p = u[o.side || "left"] || u.left;
-            r[d - 1] = { x: -p.x, y: -p.y };
-            for (let e = 1; e < d - 1; e++) {
-                const t = a[e - 1], n = a[e], o = a[e + 1],
-                    i = h(n.x - t.x, n.y - t.y), s = h(o.x - n.x, o.y - n.y),
-                    l = c[e] || {}, d = l.skew || 0, m = l.angleAdjust || 0,
-                    u = (1 + d) * i.x + (1 - d) * s.x, p = (1 + d) * i.y + (1 - d) * s.y,
-                    g = Math.hypot(u, p) || 1;
-                let f = { x: u / g, y: p / g };
-                if (0 !== m) {
-                    const e = m * Math.PI / 180, t = Math.cos(e), n = Math.sin(e);
-                    f = { x: f.x * t - f.y * n, y: f.x * n + f.y * t }
+        // Вычисляем абсолютные позиции для всех waypoints (включая относительные)
+        let waypoints = conn.waypoints || [];
+        let absWaypoints = []; // массив {x, y, style} для каждого waypoint
+        let tempPath = document.createElementNS(SVG_NS, "path");
+        tempPath.setAttribute("d", dString);
+
+        waypoints.forEach(wp => {
+            let style = wp.style || {};
+            if (wp.t !== undefined) {
+                // Относительная точка: находим позицию на кривой по параметру t
+                let targetDist = wp.t * totalLen;
+                let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+                absWaypoints.push({ x: pt.x, y: pt.y, style });
+            } else {
+                // Абсолютная точка
+                let ax = wp.offsetX, ay = wp.offsetY;
+                if (wp.blockId) {
+                    let b = state.getBlock(wp.blockId);
+                    if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
                 }
-                r[e] = f
+                absWaypoints.push({ x: ax, y: ay, style });
             }
-            const g = [];
-            for (let e = 0; e < d - 1; e++) {
-                const t = a[e], n = a[e + 1],
-                    o = Math.hypot(n.x - t.x, n.y - t.y),
-                    i = Math.max(80, Math.min(250, .5 * o)),
-                    s = 1 - (e > 0 && e < d - 1 ? void 0 !== c[e].tension ? c[e].tension : .5 : 0),
-                    l = 1 - (e + 1 > 0 && e + 1 < d - 1 ? void 0 !== c[e + 1].tension ? c[e + 1].tension : .5 : 0),
-                    h = t.x + r[e].x * i * s, m = t.y + r[e].y * i * s,
-                    u = n.x - r[e + 1].x * i * l, p = n.y - r[e + 1].y * i * l;
-                0 === e ? g.push(`M ${t.x} ${t.y} C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`) : g.push(`C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`)
-            }
-            let k = g.join(" ");
+        });
 
-            if (relIndices.length > 0) {
-                let tempPath = document.createElementNS(SV, "path");
-                tempPath.setAttribute("d", k);
-                let totalLen = tempPath.getTotalLength() || 1;
-                relIndices.forEach(r => {
-                    let wp = waypoints[r.idx];
-                    let targetDist = wp.t * totalLen;
-                    let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
-                    let idxInL = r.idx;
-                    if (idxInL < l.length) {
-                        l[idxInL] = { x: pt.x, y: pt.y, style: wp.style || {} };
-                    } else {
-                        l.push({ x: pt.x, y: pt.y, style: wp.style || {} });
-                    }
-                });
+        // Отрисовка пути
+        let strokeColor = conn.stroke || "#e8a030", strokeW = conn.strokeWidth || 2;
+        let dash = conn.dashArray && conn.dashArray !== "none" ? conn.dashArray : "none";
+        let startMarker = conn.startMarker || "none", endMarker = conn.endMarker || "triangle";
+        let startMarkerUrl = startMarker !== "none" ? `url(#marker-${startMarker})` : "none";
+        let endMarkerUrl = endMarker !== "none" ? `url(#marker-${endMarker})` : "none";
 
-                let a2 = [n, ...l, o];
-                const c2 = a2.map((e, t) => 0 === t || t === a2.length - 1 ? {} : e.style || {}),
-                    d2 = a2.length, r2 = new Array(d2);
-                r2[0] = r[0];
-                r2[d2 - 1] = r[d - 1];
-                for (let e = 1; e < d2 - 1; e++) {
-                    const t = a2[e - 1], n2 = a2[e], o2 = a2[e + 1],
-                        i = h(n2.x - t.x, n2.y - t.y), s = h(o2.x - n2.x, o2.y - n2.y),
-                        l2 = c2[e] || {}, d3 = l2.skew || 0, m3 = l2.angleAdjust || 0,
-                        u2 = (1 + d3) * i.x + (1 - d3) * s.x, p2 = (1 + d3) * i.y + (1 - d3) * s.y,
-                        g2 = Math.hypot(u2, p2) || 1;
-                    let f = { x: u2 / g2, y: p2 / g2 };
-                    if (0 !== m3) {
-                        const e2 = m3 * Math.PI / 180, t2 = Math.cos(e2), n3 = Math.sin(e2);
-                        f = { x: f.x * t2 - f.y * n3, y: f.x * n3 + f.y * t2 }
-                    }
-                    r2[e] = f
-                }
-                const g2 = [];
-                for (let e2 = 0; e2 < d2 - 1; e2++) {
-                    const t2 = a2[e2], n2 = a2[e2 + 1],
-                        o2 = Math.hypot(n2.x - t2.x, n2.y - t2.y),
-                        i2 = Math.max(80, Math.min(250, .5 * o2)),
-                        s2 = 1 - (e2 > 0 && e2 < d2 - 1 ? void 0 !== c2[e2].tension ? c2[e2].tension : .5 : 0),
-                        l2 = 1 - (e2 + 1 > 0 && e2 + 1 < d2 - 1 ? void 0 !== c2[e2 + 1].tension ? c2[e2 + 1].tension : .5 : 0),
-                        h2 = t2.x + r2[e2].x * i2 * s2, m2 = t2.y + r2[e2].y * i2 * s2,
-                        u2 = n2.x - r2[e2 + 1].x * i2 * l2, p2 = n2.y - r2[e2 + 1].y * i2 * l2;
-                    0 === e2 ? g2.push(`M ${t2.x} ${t2.y} C ${h2} ${m2} ${u2} ${p2} ${n2.x} ${n2.y}`) : g2.push(`C ${h2} ${m2} ${u2} ${p2} ${n2.x} ${n2.y}`)
-                }
-                k = g2.join(" ");
-            }
+        let path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", dString);
+        path.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === conn.id ? " selected" : ""));
+        path.setAttribute("stroke", strokeColor);
+        path.setAttribute("stroke-width", strokeW);
+        if (dash !== "none") path.setAttribute("stroke-dasharray", dash);
+        if (startMarkerUrl !== "none") path.setAttribute("marker-start", startMarkerUrl);
+        if (endMarkerUrl !== "none") path.setAttribute("marker-end", endMarkerUrl);
+        group.appendChild(path);
 
-            let v = t.stroke || "#e8a030", b = t.strokeWidth || 2,
-                w = t.dashArray && "none" !== t.dashArray ? t.dashArray : "none",
-                I = t.startMarker || "none", E = t.endMarker || "triangle",
-                B = "none" !== I ? `url(#marker-${I})` : "none",
-                C = "none" !== E ? `url(#marker-${E})` : "none",
-                M = document.createElementNS(SV, "path");
-            M.setAttribute("d", k);
-            M.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === t.id ? " selected" : ""));
-            M.setAttribute("stroke", v); M.setAttribute("stroke-width", b);
-            "none" !== w && M.setAttribute("stroke-dasharray", w);
-            "none" !== B && M.setAttribute("marker-start", B);
-            "none" !== C && M.setAttribute("marker-end", C);
-            group.appendChild(M);
-            if (state.state.selectedConnectionId === t.id) {
-                let t = document.createElementNS(SV, "path");
-                t.setAttribute("d", k); t.setAttribute("class", "glow-line");
-                t.setAttribute("stroke", "#fff"); t.setAttribute("stroke-width", b + 2);
-                t.setAttribute("filter", "url(#neonGlow)");
-                t.style.animation = "neonPulse 2s ease-in-out infinite alternate";
-                "none" !== w && t.setAttribute("stroke-dasharray", w);
-                group.appendChild(t)
-            }
-            let S = document.createElementNS(SV, "path");
-            S.setAttribute("d", k); S.setAttribute("class", "connection-hit");
-            S.dataset.connId = t.id; group.appendChild(S);
-            l.forEach((n, o) => {
-                if (!(t.id === state.state.selectedConnectionId || state.state.selectedWaypoint && state.state.selectedWaypoint.connId === t.id && state.state.selectedWaypoint.index === o)) return;
-                const i = n.style || {}, s = i.color || "#e8a030", l = i.shape || "circle",
-                    a = { small: 4, medium: 6, large: 8 }[i.size] || 6,
-                    c = state.state.selectedWaypoint && state.state.selectedWaypoint.connId === t.id && state.state.selectedWaypoint.index === o;
-                let d;
-                if ("circle" === l) d = document.createElementNS(SV, "circle"), d.setAttribute("cx", n.x), d.setAttribute("cy", n.y), d.setAttribute("r", a);
-                else if ("square" === l) d = document.createElementNS(SV, "rect"), d.setAttribute("x", n.x - a), d.setAttribute("y", n.y - a), d.setAttribute("width", 2 * a), d.setAttribute("height", 2 * a), d.setAttribute("rx", 2);
-                else if ("diamond" === l) { d = document.createElementNS(SV, "polygon"); const e = `${n.x},${n.y - a} ${n.x + a},${n.y} ${n.x},${n.y + a} ${n.x - a},${n.y}`; d.setAttribute("points", e) }
-                else if ("cross" === l) {
-                    d = document.createElementNS(SV, "g");
-                    let line1 = document.createElementNS(SV, "line");
-                    line1.setAttribute("x1", n.x - a); line1.setAttribute("y1", n.y - a);
-                    line1.setAttribute("x2", n.x + a); line1.setAttribute("y2", n.y + a);
-                    line1.setAttribute("stroke", s); line1.setAttribute("stroke-width", "2");
-                    d.appendChild(line1);
-                    let line2 = document.createElementNS(SV, "line");
-                    line2.setAttribute("x1", n.x + a); line2.setAttribute("y1", n.y - a);
-                    line2.setAttribute("x2", n.x - a); line2.setAttribute("y2", n.y + a);
-                    line2.setAttribute("stroke", s); line2.setAttribute("stroke-width", "2");
-                    d.appendChild(line2);
-                }
-                else if ("triangle" === l) { d = document.createElementNS(SV, "polygon"); const e = `${n.x},${n.y - a} ${n.x + a},${n.y + a} ${n.x - a},${n.y + a}`; d.setAttribute("points", e) }
+        // Свечение для выделенной связи
+        if (state.state.selectedConnectionId === conn.id) {
+            let glow = document.createElementNS(SVG_NS, "path");
+            glow.setAttribute("d", dString);
+            glow.setAttribute("class", "glow-line");
+            glow.setAttribute("stroke", "#fff");
+            glow.setAttribute("stroke-width", strokeW + 2);
+            glow.setAttribute("filter", "url(#neonGlow)");
+            glow.style.animation = "neonPulse 2s ease-in-out infinite alternate";
+            if (dash !== "none") glow.setAttribute("stroke-dasharray", dash);
+            group.appendChild(glow);
+        }
 
-                if (l !== "cross") {
-                    d.style.fill = s;
-                    d.setAttribute("stroke", c ? "#fff" : "var(--surface)");
-                    d.setAttribute("stroke-width", "2");
-                }
-                d.setAttribute("class", "waypoint-circle" + (c ? " selected" : ""));
-                d.dataset.connId = t.id; d.dataset.index = o;
-                d.style.cursor = "pointer"; d.style.pointerEvents = "auto";
-                group.appendChild(d);
-            });
-            if (t.label && t.label.trim()) {
-                let i, s = l.length > 0 ? { x: (n.x + l[0].x) / 2, y: (n.y + l[0].y) / 2 } : { x: (n.x + o.x) / 2, y: (n.y + o.y) / 2 },
-                    a = t.labelAngle || 0, c = t.labelOffsetX || 0, d = t.labelOffsetY || 0,
-                    r = { x: s.x + c, y: s.y + d },
-                    h = document.createElementNS(SV, "text");
-                h.setAttribute("x", r.x); h.setAttribute("y", r.y);
-                h.setAttribute("transform", `rotate(${a}, ${r.x}, ${r.y})`);
-                h.setAttribute("class", "connection-label"); h.textContent = t.label;
-                try { group.appendChild(h), i = h.getBBox(), group.removeChild(h) } catch (e) { i = { width: 0, height: 0 } }
-                if (i.width > 0) {
-                    let t = document.createElementNS(SV, "rect"), n = 4;
-                    t.setAttribute("x", r.x - i.width / 2 - n); t.setAttribute("y", r.y - i.height / 2 - n);
-                    t.setAttribute("width", i.width + 2 * n); t.setAttribute("height", i.height + 2 * n);
-                    t.setAttribute("transform", `rotate(${a}, ${r.x}, ${r.y})`);
-                    t.setAttribute("class", "connection-label-bg"); group.appendChild(t)
-                }
-                group.appendChild(h);
-                let m = document.createElementNS(SV, "rect");
-                m.setAttribute("x", r.x - 20); m.setAttribute("y", r.y - 10);
-                m.setAttribute("width", 40); m.setAttribute("height", 20);
-                m.setAttribute("class", "label-drag-handle"); m.dataset.connId = t.id;
-                group.appendChild(m)
+        // Невидимая широкая линия для кликабельности
+        let hit = document.createElementNS(SVG_NS, "path");
+        hit.setAttribute("d", dString);
+        hit.setAttribute("class", "connection-hit");
+        hit.dataset.connId = conn.id;
+        group.appendChild(hit);
+
+        // Отрисовка кружочков waypoints
+        absWaypoints.forEach((pt, idx) => {
+            let wp = waypoints[idx];
+            if (!wp) return;
+            // Показываем точку только если выделена связь или любая точка на ней
+if (!(state.state.selectedConnectionId === conn.id ||
+      (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id))) return;
+	  		let style = wp.style || {};
+            let color = style.color || "#e8a030";
+            let shape = style.shape || "circle";
+            let size = { small: 4, medium: 6, large: 8 }[style.size] || 6;
+            let isSelected = state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id && state.state.selectedWaypoint.index === idx;
+
+            let el;
+            if (shape === "circle") {
+                el = document.createElementNS(SVG_NS, "circle");
+                el.setAttribute("cx", pt.x); el.setAttribute("cy", pt.y); el.setAttribute("r", size);
+            } else if (shape === "square") {
+                el = document.createElementNS(SVG_NS, "rect");
+                el.setAttribute("x", pt.x - size); el.setAttribute("y", pt.y - size);
+                el.setAttribute("width", size*2); el.setAttribute("height", size*2); el.setAttribute("rx", 2);
+            } else if (shape === "diamond") {
+                el = document.createElementNS(SVG_NS, "polygon");
+                el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y} ${pt.x},${pt.y + size} ${pt.x - size},${pt.y}`);
+            } else if (shape === "cross") {
+                el = document.createElementNS(SVG_NS, "g");
+                let l1 = document.createElementNS(SVG_NS, "line");
+                l1.setAttribute("x1", pt.x - size); l1.setAttribute("y1", pt.y - size);
+                l1.setAttribute("x2", pt.x + size); l1.setAttribute("y2", pt.y + size);
+                l1.setAttribute("stroke", color); l1.setAttribute("stroke-width", "2");
+                let l2 = document.createElementNS(SVG_NS, "line");
+                l2.setAttribute("x1", pt.x + size); l2.setAttribute("y1", pt.y - size);
+                l2.setAttribute("x2", pt.x - size); l2.setAttribute("y2", pt.y + size);
+                l2.setAttribute("stroke", color); l2.setAttribute("stroke-width", "2");
+                el.appendChild(l1); el.appendChild(l2);
+            } else if (shape === "triangle") {
+                el = document.createElementNS(SVG_NS, "polygon");
+                el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y + size} ${pt.x - size},${pt.y + size}`);
             }
-            e.appendChild(group);
-            this._connElements.set(t.id, group);
-        })
-    },
+            if (shape !== "cross") {
+                el.setAttribute("fill", color);
+                el.setAttribute("stroke", isSelected ? "#fff" : "var(--surface)");
+                el.setAttribute("stroke-width", "2");
+            }
+            el.setAttribute("class", "waypoint-circle" + (isSelected ? " selected" : ""));
+            el.dataset.connId = conn.id;
+            el.dataset.index = idx;
+            el.style.cursor = "pointer";
+            el.style.pointerEvents = "auto";
+            group.appendChild(el);
+        });
+
+        // Подпись
+        if (conn.label && conn.label.trim()) {
+            // Используем середину первого сегмента или всей линии
+            let mid = absWaypoints.length > 0 ? {
+                x: (conn.from && conn.to ? (getBlockRectById(conn.from.blockId, conn.from.itemIndex)?.x + getBlockRectById(conn.to.blockId, conn.to.itemIndex)?.x) / 2 : 0),
+                y: 0 // упростим: вычислим из d-строки
+            } : { x: 0, y: 0 };
+            // Быстрый способ: найдём точку на середине длины
+            let midPt = tempPath.getPointAtLength(totalLen / 2);
+            let angle = conn.labelAngle || 0;
+            let offX = conn.labelOffsetX || 0;
+            let offY = conn.labelOffsetY || 0;
+            let pos = { x: midPt.x + offX, y: midPt.y + offY };
+            let text = document.createElementNS(SVG_NS, "text");
+            text.setAttribute("x", pos.x);
+            text.setAttribute("y", pos.y);
+            text.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
+            text.setAttribute("class", "connection-label");
+            text.textContent = conn.label;
+            let bbox;
+            try { group.appendChild(text); bbox = text.getBBox(); group.removeChild(text); } catch(e) { bbox = { width: 0, height: 0 }; }
+            if (bbox.width > 0) {
+                let bg = document.createElementNS(SVG_NS, "rect");
+                let pad = 4;
+                bg.setAttribute("x", pos.x - bbox.width/2 - pad);
+                bg.setAttribute("y", pos.y - bbox.height/2 - pad);
+                bg.setAttribute("width", bbox.width + 2*pad);
+                bg.setAttribute("height", bbox.height + 2*pad);
+                bg.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
+                bg.setAttribute("class", "connection-label-bg");
+                group.appendChild(bg);
+            }
+            group.appendChild(text);
+            let dragHandle = document.createElementNS(SVG_NS, "rect");
+            dragHandle.setAttribute("x", pos.x - 20);
+            dragHandle.setAttribute("y", pos.y - 10);
+            dragHandle.setAttribute("width", 40);
+            dragHandle.setAttribute("height", 20);
+            dragHandle.setAttribute("class", "label-drag-handle");
+            dragHandle.dataset.connId = conn.id;
+            group.appendChild(dragHandle);
+        }
+
+        svg.appendChild(group);
+        this._connElements.set(conn.id, group);
+    });
+},
     setupConnectionEdit: function() {
         const e = document.getElementById("guidesSvg");
         e.addEventListener("dblclick", e => {
@@ -1638,336 +1618,300 @@ const renderer = {
         })
     },
     addWaypointFromEvent: function(e, t) {
-        let n = state.state.connections.find(c => c.id === t);
-        if (!n) return;
-        let o = canvasWrapper.getBoundingClientRect(),
-            i = (e.clientX - o.left) / state.state.zoom,
-            s = (e.clientY - o.top) / state.state.zoom,
-            from = getBlockRectById(n.from.blockId, n.from.itemIndex),
-            to = getBlockRectById(n.to.blockId, n.to.itemIndex);
-        if (!from || !to) return;
+    let conn = state.state.connections.find(c => c.id === t);
+    if (!conn) return;
+    let wsRect = canvasWrapper.getBoundingClientRect(),
+        cx = (e.clientX - wsRect.left) / state.state.zoom,
+        cy = (e.clientY - wsRect.top) / state.state.zoom,
+        from = getBlockRectById(conn.from.blockId, conn.from.itemIndex),
+        to = getBlockRectById(conn.to.blockId, conn.to.itemIndex);
+    if (!from || !to) return;
 
-        let startPt, endPt;
-        if (n.from.side && void 0 !== n.from.t && null !== n.from.t) startPt = getPortPoint(from, n.from.side, n.from.t);
-        else { let e = { x: to.x + to.w / 2, y: to.y + to.h / 2 }; startPt = closestPointOnRect(from, e.x, e.y) }
-        if (n.to.side && void 0 !== n.to.t && null !== n.to.t) endPt = getPortPoint(to, n.to.side, n.to.t);
-        else { let e = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; endPt = closestPointOnRect(to, e.x, e.y) }
+    // Начальная и конечная точки портов
+    let startPt, endPt;
+    if (conn.from.side && void 0 !== conn.from.t && null !== conn.from.t) startPt = getPortPoint(from, conn.from.side, conn.from.t);
+    else { let dummy = { x: to.x + to.w / 2, y: to.y + to.h / 2 }; startPt = closestPointOnRect(from, dummy.x, dummy.y) }
+    if (conn.to.side && void 0 !== conn.to.t && null !== conn.to.t) endPt = getPortPoint(to, conn.to.side, conn.to.t);
+    else { let dummy = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; endPt = closestPointOnRect(to, dummy.x, dummy.y) }
 
-        let waypoints = n.waypoints ? [...n.waypoints] : [];
-        let absWaypoints = [];
-        let allPts = [startPt];
-        waypoints.forEach(wp => {
-            if (wp.t !== undefined) {
-                allPts.push(null);
-            } else {
-                let ax = wp.offsetX, ay = wp.offsetY;
-                if (wp.blockId) {
-                    let b = state.getBlock(wp.blockId);
-                    if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
-                }
-                allPts.push({x: ax, y: ay});
+    // Собираем текущие waypoints (копия) и массив всех абсолютных точек
+    let waypoints = conn.waypoints ? [...conn.waypoints] : [];
+    let allPts = [startPt];
+    waypoints.forEach(wp => {
+        if (wp.t !== undefined) {
+            // относительная точка – пока помечаем null, вычислим после построения кривой
+            allPts.push(null);
+        } else {
+            let ax = wp.offsetX, ay = wp.offsetY;
+            if (wp.blockId) {
+                let b = state.getBlock(wp.blockId);
+                if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
             }
-        });
-        allPts.push(endPt);
-
-        let cleanPts = allPts.filter(p => p !== null);
-        if (cleanPts.length < 2) return;
-        let a = [startPt, ...cleanPts.slice(1, -1), endPt];
-        const c = a.map((e, t) => 0 === t || t === a.length - 1 ? {} : e.style || {}),
-            d = a.length, r = new Array(d),
-            h = (e, t) => { const n = Math.hypot(e, t) || 1; return { x: e / n, y: t / n } },
-            m = startPt.side || "right", u = { top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
-        r[0] = u[m] || u.right;
-        const p = u[endPt.side || "left"] || u.left;
-        r[d - 1] = { x: -p.x, y: -p.y };
-        for (let e = 1; e < d - 1; e++) {
-            const t = a[e - 1], n = a[e], o = a[e + 1],
-                i = h(n.x - t.x, n.y - t.y), s = h(o.x - n.x, o.y - n.y),
-                l = c[e] || {}, d = l.skew || 0, m = l.angleAdjust || 0,
-                u = (1 + d) * i.x + (1 - d) * s.x, p = (1 + d) * i.y + (1 - d) * s.y,
-                g = Math.hypot(u, p) || 1;
-            let f = { x: u / g, y: p / g };
-            if (0 !== m) {
-                const e = m * Math.PI / 180, t = Math.cos(e), n = Math.sin(e);
-                f = { x: f.x * t - f.y * n, y: f.x * n + f.y * t }
-            }
-            r[e] = f
+            allPts.push({x: ax, y: ay});
         }
-        const g = [];
-        for (let e = 0; e < d - 1; e++) {
-            const t = a[e], n = a[e + 1],
-                o = Math.hypot(n.x - t.x, n.y - t.y),
-                i = Math.max(80, Math.min(250, .5 * o)),
-                s = 1 - (e > 0 && e < d - 1 ? void 0 !== c[e].tension ? c[e].tension : .5 : 0),
-                l = 1 - (e + 1 > 0 && e + 1 < d - 1 ? void 0 !== c[e + 1].tension ? c[e + 1].tension : .5 : 0),
-                h = t.x + r[e].x * i * s, m = t.y + r[e].y * i * s,
-                u = n.x - r[e + 1].x * i * l, p = n.y - r[e + 1].y * i * l;
-            0 === e ? g.push(`M ${t.x} ${t.y} C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`) : g.push(`C ${h} ${m} ${u} ${p} ${n.x} ${n.y}`)
+    });
+    allPts.push(endPt);
+
+    // Убираем null-точки для построения временной кривой
+    let cleanPts = allPts.filter(p => p !== null);
+    if (cleanPts.length < 2) return;
+
+    // Строим временную кривую через новую общую функцию
+    let tempPts = [startPt, ...cleanPts.slice(1, -1), endPt];
+    const stTan = { top: {x:0,y:-1}, bottom: {x:0,y:1}, left: {x:-1,y:0}, right: {x:1,y:0} }[startPt.side || 'right'] || {x:1,y:0};
+    const edTan = { top: {x:0,y:-1}, bottom: {x:0,y:1}, left: {x:-1,y:0}, right: {x:1,y:0} }[endPt.side || 'left'] || {x:-1,y:0};
+    const edTanInv = { x: -edTan.x, y: -edTan.y };
+    let curve = buildCurvePath(tempPts, stTan, edTanInv);
+    let totalLen = curve.totalLen;
+
+    // Вычисляем абсолютные позиции для всех относительных waypoints
+    let wpIdx = 0;
+    for (let i = 0; i < allPts.length; i++) {
+        if (allPts[i] === null) {
+            let wp = waypoints[wpIdx];
+            let targetDist = wp.t * totalLen;
+            let tempPath = document.createElementNS(SVG_NS, "path");
+            tempPath.setAttribute("d", curve.d);
+            let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+            allPts[i] = { x: pt.x, y: pt.y };
+            wpIdx++;
         }
-        const k = g.join(" ");
-        let tempPath = document.createElementNS(SV, "path");
-        tempPath.setAttribute("d", k);
-        let totalLen = tempPath.getTotalLength();
+    }
 
-        let wpIdx = 0;
-        let ptsWithAbs = [startPt];
-        for (let i = 0; i < allPts.length; i++) {
-            if (allPts[i] === null) {
-                let wp = waypoints[wpIdx];
-                let targetDist = wp.t * totalLen;
-                let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
-                allPts[i] = { x: pt.x, y: pt.y };
-                wpIdx++;
-            }
-            ptsWithAbs.push(allPts[i]);
+    // Массив всех абсолютных точек (start + waypoints + end) для поиска сегмента
+    let ptsWithAbs = [startPt];
+    for (let i = 1; i < allPts.length; i++) {
+        ptsWithAbs.push(allPts[i]);
+    }
+
+    // Ищем ближайший сегмент к точке клика (cx, cy) и параметр t от начала пути
+    let bestDist = Infinity, bestT = 0, insertIdx = 0;
+    let cumDist = 0;
+    for (let j = 0; j < ptsWithAbs.length - 1; j++) {
+        let p1 = ptsWithAbs[j], p2 = ptsWithAbs[j + 1];
+        let segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        let dx = p2.x - p1.x, dy = p2.y - p1.y, len2 = dx*dx + dy*dy;
+        let t_seg = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((cx - p1.x)*dx + (cy - p1.y)*dy) / len2));
+        let projX = p1.x + t_seg * dx, projY = p1.y + t_seg * dy;
+        let dist = Math.hypot(cx - projX, cy - projY);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestT = totalLen > 0 ? (cumDist + t_seg * segLen) / totalLen : 0;
+            insertIdx = j; // индекс сегмента, которому принадлежит проекция (0 = между start и первым waypoint)
         }
+        cumDist += segLen;
+    }
 
-        let bestDist = Infinity, bestT = 0, insertIdx = 0;
-        let cumDist = 0;
-        for (let j = 0; j < ptsWithAbs.length - 1; j++) {
-            let p1 = ptsWithAbs[j], p2 = ptsWithAbs[j + 1];
-            let segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            let dx = p2.x - p1.x, dy = p2.y - p1.y, len2 = dx*dx + dy*dy;
-            let t_seg = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((i - p1.x)*dx + (s - p1.y)*dy) / len2));
-            let projX = p1.x + t_seg * dx, projY = p1.y + t_seg * dy;
-            let dist = Math.hypot(i - projX, s - projY);
-            if (dist < bestDist) {
-                bestDist = dist;
-                bestT = totalLen > 0 ? (cumDist + t_seg * segLen) / totalLen : 0;
-                insertIdx = j;
+    // Индекс для вставки в массив waypoints: insertIdx = 0 -> перед первым waypoint, и т.д.
+    let insIdx = Math.min(insertIdx, waypoints.length);
+
+    // Создаём новую относительную точку
+    let newWp = { t: bestT, style: {} };
+    waypoints.splice(insIdx, 0, newWp);
+    conn.waypoints = waypoints; // обновляем соединение
+    state.state.connections = state.state.connections.map(c => c.id === t ? {...c, waypoints: [...waypoints]} : c);
+    state.selectWaypoint(t, insIdx);
+    events.emit("state:changed");
+
+    // Запись в историю для отмены
+    history.push({
+        type: "wp-add",
+        connId: t,
+        waypoint: newWp,
+        index: insIdx,
+        undo: () => {
+            let c = state.state.connections.find(c => c.id === t);
+            if (c && c.waypoints) c.waypoints.splice(insIdx, 1);
+            events.emit("state:changed");
+        },
+        redo: () => {
+            let c = state.state.connections.find(c => c.id === t);
+            if (c) {
+                c.waypoints = c.waypoints || [];
+                c.waypoints.splice(insIdx, 0, newWp);
             }
-            cumDist += segLen;
+            events.emit("state:changed");
         }
-
-        let insIdx = insertIdx;
-        if (insIdx > waypoints.length) insIdx = waypoints.length;
-
-        let newWp = { offsetX: 0, offsetY: 0, t: bestT, style: {} };
-        waypoints.splice(insIdx, 0, newWp);
-        state.state.connections = state.state.connections.map(c => c.id === t ? {...c, waypoints: waypoints} : c);
-        state.selectWaypoint(t, insIdx);
-        events.emit("state:changed");
-        history.push({
-            type: "wp-add", connId: t, waypoint: newWp, index: insIdx,
-            undo: () => {
-                let c = state.state.connections.find(c => c.id === t);
-                if (c && c.waypoints) c.waypoints.splice(insIdx, 1);
-                events.emit("state:changed");
-            },
-            redo: () => {
-                let c = state.state.connections.find(c => c.id === t);
-                if (c) { c.waypoints = c.waypoints || []; c.waypoints.splice(insIdx, 0, newWp); }
-                events.emit("state:changed");
-            }
-        });
-        showToast("Добавлена промежуточная точка", "info");
-    },
-    getAbsolutePos: function(wp, conn) {
-        let from = getBlockRectById(conn.from.blockId, conn.from.itemIndex);
-        let to = getBlockRectById(conn.to.blockId, conn.to.itemIndex);
-        if (!from || !to) return {x:0,y:0};
-        let n, o;
-        if (conn.from.side != null) n = getPortPoint(from, conn.from.side, conn.from.t);
-        else { let e = { x: to.x + to.w / 2, y: to.y + to.h / 2 }; n = closestPointOnRect(from, e.x, e.y) }
-        if (conn.to.side != null) o = getPortPoint(to, conn.to.side, conn.to.t);
-        else { let e = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; o = closestPointOnRect(to, e.x, e.y) }
-
-        let waypoints = conn.waypoints || [], allAbs = [n];
-        waypoints.forEach(w => {
-            if (w === wp) { allAbs.push(null); }
-            else {
-                let ax = w.offsetX, ay = w.offsetY;
-                if (w.blockId) {
-                    let b = state.getBlock(w.blockId);
-                    if (b) { ax = b.x + w.offsetX; ay = b.y + w.offsetY; }
-                }
-                allAbs.push({x:ax, y:ay});
-            }
-        });
-        allAbs.push(o);
-        let clean = allAbs.filter(p => p !== null);
-        let len = 0; for (let j=0; j<clean.length-1; j++) len += Math.hypot(clean[j+1].x-clean[j].x, clean[j+1].y-clean[j].y);
-        let target = wp.t * len, cum = 0;
-        for (let j=0; j<clean.length-1; j++) {
-            let segLen = Math.hypot(clean[j+1].x-clean[j].x, clean[j+1].y-clean[j].y);
-            if (cum + segLen >= target || j === clean.length-2) {
-                let lt = segLen > 0 ? (target - cum) / segLen : 0;
-                return {
-                    x: clean[j].x + (clean[j+1].x - clean[j].x) * lt,
-                    y: clean[j].y + (clean[j+1].y - clean[j].y) * lt
-                };
-            }
-            cum += segLen;
-        }
-        return clean[clean.length-1];
-    },
+    });
+    showToast("Добавлена промежуточная точка", "info");
+},
     setupWaypointInteraction: function() {
-        const e = document.getElementById("guidesSvg");
+    const svg = document.getElementById("guidesSvg");
 
-        const getAbsolutePos = (wp, conn) => {
-            // используем метод объекта
-            return renderer.getAbsolutePos(wp, conn);
-        };
+    svg.addEventListener("pointerdown", ev => {
+        let target = ev.target.closest(".waypoint-circle");
+        if (!target) return;
+        ev.stopPropagation(); ev.preventDefault();
 
-        e.addEventListener("pointerdown", ev => {
-            let t = ev.target.closest(".waypoint-circle");
-            if (!t) return;
-            ev.stopPropagation(); ev.preventDefault();
-            let connId = t.dataset.connId,
-                idx = parseInt(t.dataset.index),
-                conn = state.state.connections.find(c => c.id === connId);
-            if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
-            state.selectWaypoint(connId, idx);
-            let wp = conn.waypoints[idx];
+        let connId = target.dataset.connId,
+            idx = parseInt(target.dataset.index),
+            conn = state.state.connections.find(c => c.id === connId);
+        if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
 
-            let wasRelative = wp.t !== undefined;
-            let origOffX, origOffY, startClientX = ev.clientX, startClientY = ev.clientY;
-            let startT = wp.t;
+        state.selectWaypoint(connId, idx);
+        let wp = conn.waypoints[idx];
+        let wasRelative = wp.t !== undefined;
+        let startClientX = ev.clientX, startClientY = ev.clientY;
+
+        // Для абсолютной точки запоминаем старые координаты
+        let origOffX = wasRelative ? 0 : wp.offsetX;
+        let origOffY = wasRelative ? 0 : wp.offsetY;
+        let origT = wasRelative ? wp.t : 0;
+
+        let active = true;
+
+        let moveHandler = (me) => {
+            if (!active) return;
+            let curConn = state.state.connections.find(c => c.id === connId);
+            if (!curConn || !curConn.waypoints) return;
+            let curWp = curConn.waypoints[idx];
+            if (!curWp) return;
+
+            // Получаем координаты мыши в пространстве холста
+            let rect = canvasWrapper.getBoundingClientRect();
+            let mouseX = (me.clientX - rect.left) / state.state.zoom;
+            let mouseY = (me.clientY - rect.top) / state.state.zoom;
 
             if (wasRelative) {
-                origOffX = wp.offsetX;
-                origOffY = wp.offsetY;
-            } else {
-                origOffX = wp.offsetX;
-                origOffY = wp.offsetY;
-            }
+                // Строим временную кривую без этой точки
+                let tempWaypoints = curConn.waypoints.filter((_, i) => i !== idx);
+                let tempConn = { ...curConn, waypoints: tempWaypoints };
+                let pathData = buildConnectionPath(tempConn);
+                if (!pathData) return;
 
-            let active = true;
-            let converted = false;
-
-            let moveHandler = me => {
-                if (!active) return;
-                let curConn = state.state.connections.find(c => c.id === connId);
-                if (!curConn || !curConn.waypoints) return;
-                let curWp = curConn.waypoints[idx];
-                if (!curWp) return;
-
-                if (wasRelative && !converted) {
-                    let absPos = getAbsolutePos(curWp, curConn);
-                    delete curWp.t;
-                    delete curWp.snapToLine;
-                    curWp.offsetX = absPos.x;
-                    curWp.offsetY = absPos.y;
-                    origOffX = absPos.x;
-                    origOffY = absPos.y;
-                    curConn.waypoints = [...curConn.waypoints];
-                    state.state.connections = state.state.connections.map(c => c.id === connId ? { ...c, waypoints: curConn.waypoints } : c);
-                    Y(curWp, connId, idx);
-                    converted = true;
-                    startClientX = me.clientX;
-                    startClientY = me.clientY;
-                    renderer.renderConnections();
-                    return;
+                // Находим ближайшую точку на кривой
+                let tempPath = document.createElementNS(SVG_NS, "path");
+                tempPath.setAttribute("d", pathData.d);
+                let totalLen = pathData.totalLen;
+                let bestDist = Infinity, bestT = curWp.t;
+                let step = 1; // пиксель
+                for (let l = 0; l <= totalLen; l += step) {
+                    let pt = tempPath.getPointAtLength(l);
+                    let d = Math.hypot(mouseX - pt.x, mouseY - pt.y);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        bestT = l / totalLen;
+                    }
                 }
-
+                curWp.t = bestT;
+                // Удаляем возможные остатки абсолютных координат
+                delete curWp.offsetX;
+                delete curWp.offsetY;
+                delete curWp.blockId;
+                delete curWp.snapToLine;
+            } else {
+                // Абсолютная точка: перемещение по холсту
                 let dx = (me.clientX - startClientX) / state.state.zoom;
                 let dy = (me.clientY - startClientY) / state.state.zoom;
                 curWp.offsetX = origOffX + dx;
                 curWp.offsetY = origOffY + dy;
-                renderer.renderConnections();
-                if (state.state.selectedConnectionId === connId) {
-                    let c = state.state.connections.find(c => c.id === connId);
-                    c && N(c);
-                }
-                if (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === connId && state.state.selectedWaypoint.index === idx)
-                    Y(curWp, connId, idx);
-            };
+                // Убедимся, что нет относительных свойств
+                delete curWp.t;
+                delete curWp.snapToLine;
+            }
 
-            let upHandler = me => {
-                active = false;
-                document.removeEventListener("pointermove", moveHandler);
-                document.removeEventListener("pointerup", upHandler);
-                let curConn = state.state.connections.find(c => c.id === connId);
-                if (!curConn || !curConn.waypoints) return;
-                let finalWp = curConn.waypoints[idx];
-                if (!finalWp) return;
-                if (wasRelative && converted) {
-                    let newX = finalWp.offsetX, newY = finalWp.offsetY;
+            // Обновляем рендер и панель
+            renderer.renderConnections();
+            if (state.state.selectedConnectionId === connId) {
+                let c = state.state.connections.find(c => c.id === connId);
+                if (c) N(c);
+            }
+            if (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === connId && state.state.selectedWaypoint.index === idx) {
+                Y(curWp, connId, idx);
+            }
+        };
+
+        let upHandler = (me) => {
+            active = false;
+            document.removeEventListener("pointermove", moveHandler);
+            document.removeEventListener("pointerup", upHandler);
+
+            let curConn = state.state.connections.find(c => c.id === connId);
+            if (!curConn || !curConn.waypoints) return;
+            let finalWp = curConn.waypoints[idx];
+            if (!finalWp) return;
+
+            if (wasRelative) {
+                // Запись изменения t
+                if (finalWp.t !== origT) {
                     history.push({
-                        type: "wp-move-from-relative",
+                        type: "wp-move-relative",
                         connId, idx,
-                        oldT: startT,
-                        newOffX: newX, newOffY: newY,
+                        oldT: origT,
+                        newT: finalWp.t,
                         undo: () => {
                             let c = state.state.connections.find(c => c.id === connId);
-                            if (c && c.waypoints[idx]) {
-                                c.waypoints[idx].t = startT;
-                                delete c.waypoints[idx].offsetX;
-                                delete c.waypoints[idx].offsetY;
-                                delete c.waypoints[idx].blockId;
-                                delete c.waypoints[idx].snapToLine;
-                            }
+                            if (c && c.waypoints[idx]) c.waypoints[idx].t = origT;
                             events.emit("state:changed");
                         },
                         redo: () => {
                             let c = state.state.connections.find(c => c.id === connId);
-                            if (c && c.waypoints[idx]) {
-                                delete c.waypoints[idx].t;
-                                delete c.waypoints[idx].snapToLine;
-                                c.waypoints[idx].offsetX = newX;
-                                c.waypoints[idx].offsetY = newY;
-                            }
+                            if (c && c.waypoints[idx]) c.waypoints[idx].t = finalWp.t;
                             events.emit("state:changed");
                         }
                     });
-                } else if (!wasRelative) {
-                    if (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY) {
-                        let finalX = finalWp.offsetX, finalY = finalWp.offsetY;
-                        history.push({
-                            type: "wp-move",
-                            connId, idx,
-                            origOffX, origOffY, finalOffX: finalX, finalOffY: finalY,
-                            undo: () => {
-                                let c = state.state.connections.find(c => c.id === connId);
-                                if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = origOffX; c.waypoints[idx].offsetY = origOffY; }
-                                events.emit("state:changed");
-                            },
-                            redo: () => {
-                                let c = state.state.connections.find(c => c.id === connId);
-                                if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = finalX; c.waypoints[idx].offsetY = finalY; }
-                                events.emit("state:changed");
-                            }
-                        });
-                    }
                 }
-                events.emit("state:changed");
-            };
+            } else {
+                // Абсолютная точка: запись перемещения
+                if (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY) {
+                    let finalX = finalWp.offsetX, finalY = finalWp.offsetY;
+                    history.push({
+                        type: "wp-move",
+                        connId, idx,
+                        origOffX, origOffY,
+                        finalOffX: finalX, finalOffY: finalY,
+                        undo: () => {
+                            let c = state.state.connections.find(c => c.id === connId);
+                            if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = origOffX; c.waypoints[idx].offsetY = origOffY; }
+                            events.emit("state:changed");
+                        },
+                        redo: () => {
+                            let c = state.state.connections.find(c => c.id === connId);
+                            if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = finalX; c.waypoints[idx].offsetY = finalY; }
+                            events.emit("state:changed");
+                        }
+                    });
+                }
+            }
+            events.emit("state:changed");
+        };
 
-            document.addEventListener("pointermove", moveHandler);
-            document.addEventListener("pointerup", upHandler);
-        });
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
+    });
 
-        e.addEventListener("contextmenu", ev => {
-            let t = ev.target.closest(".waypoint-circle");
-            if (!t) return;
-            ev.preventDefault(); ev.stopPropagation();
-            let connId = t.dataset.connId,
-                idx = parseInt(t.dataset.index);
-            state.selectWaypoint(connId, idx);
-            let menu = document.getElementById("wpContextMenu");
-            menu.style.left = ev.clientX + "px";
-            menu.style.top = ev.clientY + "px";
-            menu.classList.add("open");
-            menu.querySelector('[data-action="delete-wp"]').style.display = "block";
-            menu.querySelector('[data-action="add-wp"]').style.display = "none";
-        });
+    // Остальная часть (contextmenu) остается без изменений
+    svg.addEventListener("contextmenu", ev => {
+        let t = ev.target.closest(".waypoint-circle");
+        if (!t) return;
+        ev.preventDefault(); ev.stopPropagation();
+        let connId = t.dataset.connId,
+            idx = parseInt(t.dataset.index);
+        state.selectWaypoint(connId, idx);
+        let menu = document.getElementById("wpContextMenu");
+        menu.style.left = ev.clientX + "px";
+        menu.style.top = ev.clientY + "px";
+        menu.classList.add("open");
+        menu.querySelector('[data-action="delete-wp"]').style.display = "block";
+        menu.querySelector('[data-action="add-wp"]').style.display = "none";
+    });
 
-        document.getElementById("wpContextMenu").addEventListener("click", e => {
-            let item = e.target.closest(".ctx-item");
-            if (!item) return;
-            let action = item.dataset.action;
+    document.getElementById("wpContextMenu").addEventListener("click", e => {
+        let item = e.target.closest(".ctx-item");
+        if (!item) return;
+        let action = item.dataset.action;
+        document.getElementById("wpContextMenu").classList.remove("open");
+        if (action === "delete-wp") {
+            renderer.deleteSelectedWaypoint() && showToast("Точка удалена", "info");
+        }
+    });
+
+    document.addEventListener("click", e => {
+        if (!e.target.closest("#wpContextMenu")) {
             document.getElementById("wpContextMenu").classList.remove("open");
-            if (action === "delete-wp") {
-                renderer.deleteSelectedWaypoint() && showToast("Точка удалена", "info");
-            }
-        });
-
-        document.addEventListener("click", e => {
-            if (!e.target.closest("#wpContextMenu")) {
-                document.getElementById("wpContextMenu").classList.remove("open");
-            }
-        });
-    },
+        }
+    });
+},
     setupLabelDrag: function() {
         document.getElementById("guidesSvg").addEventListener("pointerdown", e => {
             let t = e.target;
@@ -2464,7 +2408,8 @@ function renderItemList() {
 }
 
 function resetEditing() {
-    state.state.editingItemIndex = null, state.state.selectedIcon = null, invNumInput.value = "", labelInput.value = "", btnAddItem.innerHTML = renderIconHTML("plus") + " Добавить элемент", renderIconGrid(), renderItemList()
+    state.state.editingItemIndex = null, state.state.selectedIcon = null, invNumInput.value = "", labelInput.value = "", btnAddItem.innerHTML = renderIconHTML("plus") + " Добавить элемент", renderIconGrid(), renderItemList();
+    lastAutoLabel = ''; // сброс авто-подписи
 }
 
 function closeEditModal() {
@@ -3322,7 +3267,7 @@ document.getElementById("wpToggleMode").addEventListener("click", () => {
         let pathData = buildConnectionPath(conn);
         if (!pathData) return;
         let targetDist = wp.t * pathData.totalLen;
-        let tempPath = document.createElementNS(SV, "path");
+        let tempPath = document.createElementNS(SVG_NS, "path");
         tempPath.setAttribute("d", pathData.d);
         let pt = tempPath.getPointAtLength(Math.min(targetDist, pathData.totalLen));
         wp.offsetX = pt.x;
@@ -3341,7 +3286,7 @@ document.getElementById("wpToggleMode").addEventListener("click", () => {
             let b = state.getBlock(wp.blockId);
             if (b) { absPos.x = b.x + wp.offsetX; absPos.y = b.y + wp.offsetY; }
         }
-        let tempPath = document.createElementNS(SV, "path");
+        let tempPath = document.createElementNS(SVG_NS, "path");
         tempPath.setAttribute("d", pathData.d);
         let total = pathData.totalLen;
         let bestDist = Infinity, bestT = 0;
