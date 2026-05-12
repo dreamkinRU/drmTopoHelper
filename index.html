@@ -539,7 +539,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 </div>
 <script>  
 var SV = "http://www.w3.org/2000/svg";
-
+let lastAutoLabel = '';
   const e = 100,
   	t = 25.6,
   	n = 76,
@@ -869,6 +869,14 @@ var SV = "http://www.w3.org/2000/svg";
   			let n = [...this.state.blocks];
   			n.push(n.splice(t, 1)[0]), this.state.blocks = n, E.emit("state:changed")
   		},
+		sendToBack(e) {
+    let t = this.state.blocks.findIndex(t => t.id === e);
+    if (-1 === t || t === 0) return;
+    let n = [...this.state.blocks];
+    n.unshift(n.splice(t, 1)[0]);
+    this.state.blocks = n;
+    E.emit("state:changed");
+},
   		addConnection(e) {
   			this.state.connections = [...this.state.connections, e], E.emit("state:changed")
   		},
@@ -2545,9 +2553,25 @@ function T(e, t) {
   	let e = r(L.state.selectedIcon);
   	j.innerHTML = "", l.forEach(t => {
   		let n = document.createElement("button");
-  		n.className = "icon-option" + (t === e ? " active" : ""), n.title = a[t] || "", n.innerHTML = h(t), n.addEventListener("click", () => {
-  			L.state.selectedIcon = t, se()
-  		}), j.appendChild(n)
+  		n.className = "icon-option" + (t === e ? " active" : ""), n.title = a[t] || "", n.innerHTML = h(t), 
+		
+		n.addEventListener("click", () => {
+    L.state.selectedIcon = t;
+    const labelInput = document.getElementById("newItemLabel");
+    const currentLabel = labelInput.value.trim();
+    // Подставляем название, если поле пустое или содержит предыдущее автоназвание
+    if (currentLabel === '' || currentLabel === lastAutoLabel) {
+        const autoLabel = a[t] || '';
+        labelInput.value = autoLabel;
+        lastAutoLabel = autoLabel;
+    }
+    // Если пользователь ввёл своё – не трогаем, только обновляем lastAutoLabel на текущее значение,
+    // чтобы при следующей смене иконки (если он не менял текст) сработала замена.
+    else {
+        lastAutoLabel = currentLabel;
+    }
+    se();
+}), j.appendChild(n)
   	})
   }
 
@@ -3602,6 +3626,52 @@ document.getElementById("shortcutsModal").addEventListener("click", e => {
   						let e = L.getBlock(o);
   						e && L.lockBlock(o, !e.isLocked)
   					}
+					else if ("front" === n) {
+    let block = L.getBlock(o);
+    if (block) {
+        let oldIndex = L.state.blocks.indexOf(block);
+        L.bringToFront(o);
+        B.push({
+            type: "order",
+            blockId: o,
+            oldIndex: oldIndex,
+            newIndex: L.state.blocks.length - 1,
+            undo: () => {
+                let b = L.state.blocks.splice(L.state.blocks.length - 1, 1)[0];
+                L.state.blocks.splice(oldIndex, 0, b);
+                E.emit("state:changed");
+            },
+            redo: () => {
+                let b = L.state.blocks.splice(oldIndex, 1)[0];
+                L.state.blocks.push(b);
+                E.emit("state:changed");
+            }
+        });
+    }
+}
+else if ("back" === n) {
+    let block = L.getBlock(o);
+    if (block) {
+        let oldIndex = L.state.blocks.indexOf(block);
+        L.sendToBack(o);
+        B.push({
+            type: "order",
+            blockId: o,
+            oldIndex: oldIndex,
+            newIndex: 0,
+            undo: () => {
+                let b = L.state.blocks.shift();
+                L.state.blocks.splice(oldIndex, 0, b);
+                E.emit("state:changed");
+            },
+            redo: () => {
+                let b = L.state.blocks.splice(oldIndex, 1)[0];
+                L.state.blocks.unshift(b);
+                E.emit("state:changed");
+            }
+        });
+    }
+}
   				}), document.getElementById("connContextMenu").addEventListener("click", e => {
   					let t = e.target.closest(".ctx-item");
   					if (!t) return;
