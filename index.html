@@ -1015,10 +1015,20 @@ clear() {
 this.undoStack = [], this.redoStack = [], this.updateBtns()
 }
 updateBtns() {
-document.getElementById("btnUndo").disabled = !this.undoStack.length, document.getElementById("btnRedo").disabled = !this.redoStack.length
+document.getElementById("btnUndo").disabled = !this.undoStack.length, 
+document.getElementById("btnRedo").disabled = !this.redoStack.length
 }
 }(30);
-
+document.querySelector('.toolbar').addEventListener('click', () => {
+    if (L.state.selectedConnectionId) {
+        L.selectConnection(null);
+        A.updateGeneralUI();
+    }
+    if (L.state.selectedWaypoint) {
+        L.selectWaypoint(null, null);
+        A.updateGeneralUI();
+    }
+});
 function C(e) {
 return {
 id: e.id,
@@ -2648,6 +2658,8 @@ J = document.getElementById("noConns"),
 Q = document.getElementById("errorOverlay"),
 ee = document.getElementById("errorMessage");
 let te = null;
+F.addEventListener("focus", () => F.select());
+G.addEventListener("focus", () => G.select());
 
 function ne() {
 clearTimeout(te), te = setTimeout(() => {
@@ -2724,6 +2736,10 @@ let n = document.createElement("button");
         lastAutoLabel = currentLabel;
     }
     se();
+    // Автофокус на поле инв. номера
+    const invInput = document.getElementById("newItemInvNum");
+    invInput.focus();
+    invInput.select();
 }), j.appendChild(n)
 })
 }
@@ -3340,9 +3356,17 @@ ge(JSON.parse(e.target.result), "файл")
 ee.textContent = e.message, Q.classList.add("open")
 }
 }, n.readAsText(t), e.target.value = ""
-}), document.getElementById("errorCancel").addEventListener("click", () => Q.classList.remove("open")), document.getElementById("errorRetry").addEventListener("click", () => {
+}), 
+document.getElementById("errorCancel").addEventListener("click", () => Q.classList.remove("open")), 
+document.getElementById("errorRetry").addEventListener("click", () => {
 Q.classList.remove("open"), document.getElementById("fileInput").click()
-}), document.getElementById("btnUndo").addEventListener("click", () => {
+}), 
+document.getElementById("errorOverlay").addEventListener("click", e => {
+    if (e.target === document.getElementById("errorOverlay")) {
+        document.getElementById("errorOverlay").classList.remove("open");
+    }
+});
+document.getElementById("btnUndo").addEventListener("click", () => {
 B.undo() && b("↩ Отменено", "info")
 }), document.getElementById("btnRedo").addEventListener("click", () => {
 B.redo() && b("↪ Повторено", "info")
@@ -3778,7 +3802,21 @@ H = new class {
         }),
 
         this.ws.addEventListener("pointerdown", e => {
-            e.target.closest(".block") || e.target.closest(".port-dot") || e.target.closest(".waypoint-circle") || e.target.closest(".label-drag-handle") || (0 === e.button ? (e.shiftKey || L.clearSelection(), this.rbActive = !0, this.rbSX = e.clientX, this.rbSY = e.clientY, this.ws.setPointerCapture(e.pointerId), e.preventDefault()) : 2 === e.button && (this.isPanning = !0, this.pSX = e.clientX, this.pSY = e.clientY, this.sSX = this.ws.scrollLeft, this.sSY = this.ws.scrollTop, this.ws.style.cursor = "grabbing", this.ws.setPointerCapture(e.pointerId), e.preventDefault()))
+    // Если есть выделенная связь или точка и клик не по их элементам – сбрасываем
+    if ((L.state.selectedConnectionId || L.state.selectedWaypoint) &&
+        !e.target.closest(".connection-hit") &&
+        !e.target.closest(".waypoint-circle") &&
+        !e.target.closest(".label-drag-handle") &&
+        !e.target.closest("#connectionPanel") &&
+        !e.target.closest("#waypointPanel")) {
+        L.state.selectedConnectionId && L.selectConnection(null);
+        L.state.selectedWaypoint && L.selectWaypoint(null, null);
+        A.updateGeneralUI();
+        return; // прерываем, чтобы не начать перетаскивание
+    }
+
+    e.target.closest(".block") || e.target.closest(".port-dot") || e.target.closest(".waypoint-circle") || e.target.closest(".label-drag-handle") || (0 === e.button ?
+			(e.shiftKey || L.clearSelection(), this.rbActive = !0, this.rbSX = e.clientX, this.rbSY = e.clientY, this.ws.setPointerCapture(e.pointerId), e.preventDefault()) : 2 === e.button && (this.isPanning = !0, this.pSX = e.clientX, this.pSY = e.clientY, this.sSX = this.ws.scrollLeft, this.sSY = this.ws.scrollTop, this.ws.style.cursor = "grabbing", this.ws.setPointerCapture(e.pointerId), e.preventDefault()))
         }), this.ws.addEventListener("pointermove", e => {
             if (this.rbActive) {
                 let t = Math.abs(e.clientX - this.rbSX),
