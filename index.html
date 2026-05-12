@@ -68,6 +68,14 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 #tooltip.visible{opacity:1}
 
 .btn kbd{position:absolute;top:-6px;right:5px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border:1px solid rgba(0,0,0,0.8);padding:2px 6px;font-size:10px;font-family:inherit;font-weight:500;color:var(--muted);border-radius:4px;line-height:1;white-space:nowrap;z-index:2;pointer-events:none;opacity:0.8}
+#shortcutsModal kbd {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9em;
+}
 .btn-accent kbd{background:rgba(0,0,0,0.2);border-color:rgba(0,0,0,0.15);color:rgba(12,12,12,0.7);opacity:0.8}
 .btn .btn-text{display:inline-block}
 
@@ -524,7 +532,7 @@ div class="section-header"><span>Настройки</span><span class="toggle-ic
 <div class="modal" style="max-width:600px">
 <h3 style="margin-bottom:16px">Горячие клавиши</h3>
 <ul style="list-style:none;padding:0;font-size:14px;color:var(--fg);line-height:2">
-<li><kbd style="background:var(--bg);border:1px solid var(--border);padding:2px 6px;border-radius:4px">Ctrl+Z</kbd> Отменить</li>
+<li><kbd>Ctrl+Z</kbd> Отменить</li>
 <li><kbd>Ctrl+Y</kbd> Повторить</li>
 <li><kbd>Ctrl+D</kbd> Дублировать</li>
 <li><kbd>Delete</kbd> Удалить выбранные блоки/связи</li>
