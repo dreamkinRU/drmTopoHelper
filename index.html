@@ -854,7 +854,39 @@ function getMainBlockForAlign() {
     }
     return null;
 }
-
+// ========== СОЗДАНИЕ БЛОКА ПО КНОПКАМ РАЗМЕРА (S/M/L) ==========
+const sizeSelector = document.getElementById('sizeSelector');
+if (sizeSelector) {
+    sizeSelector.addEventListener('click', (e) => {
+        const btn = e.target.closest('.size-option');
+        if (!btn) return;
+        const size = btn.dataset.size; // 'small', 'medium', 'large'
+        const preset = BLOCK_SIZE_PRESETS[size];
+        if (!preset) {
+            console.warn('Unknown size:', size);
+            return;
+        }
+        // Находим свободную позицию
+        const pos = findFreePosition(preset.w, preset.h);
+        const newId = 'block_' + (++state.state.blockIdCounter);
+        const newBlock = {
+            id: newId,
+            x: pos.x,
+            y: pos.y,
+            width: preset.w,
+            height: preset.h,
+            bgColor: '#1e1e22',
+            isLocked: false,
+            title: '',
+            items: [],
+            imageUrl: ''
+        };
+        state.addBlock(newBlock);
+        state.selectBlock(newId);
+        history.push(HistoryActions.create(newId, newBlock));
+        showToast(`Блок ${size === 'small' ? 'S' : size === 'medium' ? 'M' : 'L'} создан`, 'success');
+    });
+}
 function updateLockButtonText() {
     const lockBtn = document.querySelector('#contextMenu [data-action="lock"]');
     if (!lockBtn) return;
