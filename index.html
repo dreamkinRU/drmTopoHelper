@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>dreamkin topology helper v.0.997</title>
+<title>dreamkin topology helper v.0.998</title>
 <style>
 :root {
 --bg:#2a2b2e;--surface:#161618;--card:#1e1e22;--border:#2a2a30;
@@ -348,7 +348,7 @@ font-size: 0.9em;
 <div class="toolbar-brand">
 <div id="toolbar-logo-badge"><span class="drm-icon-slot" data-icon="cubes"></span></div>
 <span id="toolbar-logo-text">drmTopoHelper</span>
-<span id="toolbar-version">v.0.997</span>
+<span id="toolbar-version">v.0.998</span>
 </div>
 <div class="divider"></div>
 
@@ -847,14 +847,6 @@ function adjustMenuPosition(menu, clientX, clientY) {
     menu.style.top = top + 'px';
 }
 
-function getMainBlockForAlign() {
-    const alignMenu = document.getElementById('alignMenu');
-    if (alignMenu && alignMenu.dataset.mainBlockId) {
-        return state.getBlock(alignMenu.dataset.mainBlockId);
-    }
-    return null;
-}
-// ========== СОЗДАНИЕ БЛОКА ПО КНОПКАМ РАЗМЕРА (S/M/L) ==========
 const sizeSelector = document.getElementById('sizeSelector');
 if (sizeSelector) {
     sizeSelector.addEventListener('click', (e) => {
@@ -2684,9 +2676,8 @@ function updateConnectionList() {
         let a = document.createElement("button");
         a.className = "unlink-btn", a.innerHTML = renderIconHTML("xmark"), a.title = "Отвязать", 
 		a.onclick = () => {
-			let e = cloneConnection(t);
+			history.push(HistoryActions.connectionRemove(t.id, cloneConnection(t)));
 			state.removeConnection(t.id);
-			history.push(HistoryActions.connectionRemove(t.id, e));
 			updateConnectionList();
 			showToast("Связь удалена", "info");
 		},
@@ -3079,7 +3070,7 @@ const STORAGE_KEY = "drmTopoHelper";
 function autoSave() {
     try {
         let e = {
-            version: "0.997",
+            version: "0.998",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -3121,7 +3112,7 @@ document.getElementById("btnEdit").addEventListener("click", () => {
 }), document.getElementById("btnDelete").addEventListener("click", deleteSelected), document.getElementById("btnDuplicate").addEventListener("click", duplicateSelected), document.getElementById("btnSave").addEventListener("click", () => {
     if (!state.state.blocks.length) return void showToast("Нечего сохранять", "error");
     let e = {
-            version: "0.997",
+            version: "0.998",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -3508,32 +3499,7 @@ interaction = new class {
             }
             updateLockButtonText();
             
-            // --- КОРРЕКТИРОВКА ПОЗИЦИИ МЕНЮ, ЧТОБЫ НЕ ВЫХОДИЛО ЗА ГРАНИЦЫ ---
-            const menu = this.cm;
-            // Временно делаем меню видимым, но невидимым для глаз, чтобы измерить его размеры
-            const originalDisplay = menu.style.display;
-            const originalVisibility = menu.style.visibility;
-            menu.style.display = 'block';
-            menu.style.visibility = 'hidden';
-            menu.style.position = 'fixed';
-            menu.style.left = '0px';
-            menu.style.top = '0px';
-            const rect = menu.getBoundingClientRect();
-            const width = rect.width;
-            const height = rect.height;
-            // Возвращаем исходные стили
-            menu.style.display = originalDisplay;
-            menu.style.visibility = originalVisibility;
-            
-            let left = e.clientX;
-            let top = e.clientY;
-            if (left + width > window.innerWidth) left = window.innerWidth - width - 5;
-            if (top + height > window.innerHeight) top = window.innerHeight - height - 5;
-            if (left < 0) left = 5;
-            if (top < 0) top = 5;
-            menu.style.left = left + 'px';
-            menu.style.top = top + 'px';
-            // -----------------------------------------------------------
+            adjustMenuPosition(this.cm, e.clientX, e.clientY);
             
             this.cm.classList.add("open");
         }
