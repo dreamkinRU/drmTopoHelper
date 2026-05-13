@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>dreamkin topology helper v.0.991</title>
+<title>dreamkin topology helper v.0.992</title>
 <style>
 :root {
 --bg:#2a2b2e;--surface:#161618;--card:#1e1e22;--border:#2a2a30;
@@ -322,7 +322,7 @@ font-size: 0.9em;
 <div class="toolbar-brand">
 <div id="toolbar-logo-badge"><span class="drm-icon-slot" data-icon="cubes"></span></div>
 <span id="toolbar-logo-text">drmTopoHelper</span>
-<span id="toolbar-version">v.0.991</span>
+<span id="toolbar-version">v.0.992</span>
 </div>
 <div class="divider"></div>
 
@@ -2644,7 +2644,7 @@ const STORAGE_KEY = "drmTopoHelper";
 function autoSave() {
     try {
         let e = {
-            version: "0.991",
+            version: "0.992",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -2686,7 +2686,7 @@ document.getElementById("btnEdit").addEventListener("click", () => {
 }), document.getElementById("btnDelete").addEventListener("click", deleteSelected), document.getElementById("btnDuplicate").addEventListener("click", duplicateSelected), document.getElementById("btnSave").addEventListener("click", () => {
     if (!state.state.blocks.length) return void showToast("Нечего сохранять", "error");
     let e = {
-            version: "0.991",
+            version: "0.992",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
