@@ -1636,7 +1636,67 @@ const renderer = {
             i = Math.max(workspace.clientHeight / n, t + CANVAS_PADDING);
         canvasWrapper.style.width = o + "px", canvasWrapper.style.height = i + "px", scrollArea && (scrollArea.style.width = Math.ceil(o * n) + "px", scrollArea.style.height = Math.ceil(i * n) + "px")
     },
+    _updateDraggedItemPosition(ev, targetBlock, blockObj, item, itemIndex, startX, startY, originalItemX, originalItemY, rafIdVar, outOfBoundsFlag) {
+        const currentX = ev.clientX;
+        const currentY = ev.clientY;
+        if (rafIdVar) return;
+        rafIdVar = requestAnimationFrame(() => {
+            const itemHeight = calcItemHeight(item);
+            const blockRect = targetBlock.getBoundingClientRect();
+            const isOutOfBounds = currentX < blockRect.left || currentX > blockRect.right || currentY < blockRect.top || currentY > blockRect.bottom;
+            let newX = Math.max(0, Math.min(originalItemX + (currentX - startX) / state.state.zoom, targetBlock.clientWidth - BLOCK_ITEM_WIDTH));
+            let newY = Math.max(0, Math.min(originalItemY + (currentY - startY) / state.state.zoom, targetBlock.clientHeight - itemHeight));
+            item.x = newX;
+            item.y = newY;
+            const itemDiv = targetBlock.querySelector('.block-item[data-item-index="' + itemIndex + '"]');
+            if (itemDiv) {
+                itemDiv.style.left = newX + "px";
+                itemDiv.style.top = newY + "px";
+                if (isOutOfBounds) {
+                    itemDiv.classList.add("drop-delete");
+                    itemDiv.classList.remove("drop-valid", "drop-invalid");
+                } else {
+                    itemDiv.classList.remove("drop-delete");
+                    const overlaps = isItemOverlapWithOthers(blockObj, item, newX, newY);
+                    itemDiv.classList.toggle("drop-valid", !overlaps);
+                    itemDiv.classList.toggle("drop-invalid", overlaps);
+                }
+            }
+            outOfBoundsFlag = isOutOfBounds;
+            rafIdVar = null;
+        });
+    },
 
+    _finalizeItemDrag(targetBlock, blockObj, item, itemIndex, originalItemX, originalItemY, wasOutOfBounds, oldItemsSnapshot) {
+        const itemDiv = targetBlock.querySelector('.block-item[data-item-index="' + itemIndex + '"]');
+        if (itemDiv) {
+            itemDiv.classList.remove("dragging-item", "drop-valid", "drop-invalid", "drop-delete");
+        }
+        if (wasOutOfBounds) {
+            state.removeConnectionsForBlockItem(blockObj.id, itemIndex);
+            const newItems = blockObj.items.filter((_, i) => i !== itemIndex);
+            state.updateBlock(blockObj.id, { items: newItems });
+            history.push(HistoryActions.itemDelete(blockObj.id, itemIndex, oldItemsSnapshot));
+            showToast("Элемент удален", "info");
+            events.emit("state:changed");
+            return;
+        }
+        if (isItemOverlapWithOthers(blockObj, item, item.x, item.y)) {
+            // возвращаем на исходную позицию
+            item.x = originalItemX;
+            item.y = originalItemY;
+            if (itemDiv) {
+                itemDiv.style.left = originalItemX + "px";
+                itemDiv.style.top = originalItemY + "px";
+            }
+            return;
+        }
+        if (item.x !== originalItemX || item.y !== originalItemY) {
+            history.push(HistoryActions.itemMove(blockObj.id, itemIndex, originalItemX, originalItemY, item.x, item.y));
+        }
+        renderer.renderConnections();
+        events.emit("state:changed");
+    },
         _onCanvasPointerDown(e) {
         let t = e.target.closest(".connection-hit");
         if (t) {
@@ -1731,64 +1791,88 @@ const renderer = {
         });
     },
 
-    initItemDrag(e, t, o, i) {
-        let s = !0,
-            l = e.clientX,
-            a = e.clientY,
-            c = i.x || 0,
-            d = i.y || 0,
-            r = o.items.indexOf(i),
-            h = t.querySelector('.block-item[data-item-index="' + r + '"]');
-        h && h.classList.add("dragging-item");
-        let u = l,
-            g = a,
-            f = null,
-            outOfBounds = false;
-        let y = e => {
-            u = e.clientX, g = e.clientY,
-            f || (f = requestAnimationFrame(() => {
-                (() => {
-                    if (!s) return;
-                    let e = calcItemHeight(i);
-                    let blockRect = t.getBoundingClientRect();
-                    outOfBounds = u < blockRect.left || u > blockRect.right || g < blockRect.top || g > blockRect.bottom;
-                    let r = Math.max(0, Math.min(c + (u - l) / state.state.zoom, t.clientWidth - BLOCK_ITEM_WIDTH)),
-                        f = Math.max(0, Math.min(d + (g - a) / state.state.zoom, t.clientHeight - e));
-                    if (i.x = r, i.y = f, h) {
-                        h.style.left = i.x + "px", h.style.top = i.y + "px";
-                        if (outOfBounds) {
-                            h.classList.add("drop-delete");
-                            h.classList.remove("drop-valid", "drop-invalid");
-                        } else {
-                            h.classList.remove("drop-delete");
-                            let e = isItemOverlapWithOthers(o, i, i.x, i.y);
-                            h.classList.toggle("drop-valid", !e), h.classList.toggle("drop-invalid", e)
-                        }
+        initItemDrag(e, targetBlock, blockObj, item) {
+        let active = true;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const originalItemX = item.x || 0;
+        const originalItemY = item.y || 0;
+        const itemIndex = blockObj.items.indexOf(item);
+        const oldItemsSnapshot = JSON.parse(JSON.stringify(blockObj.items));
+        const itemDiv = targetBlock.querySelector('.block-item[data-item-index="' + itemIndex + '"]');
+        if (itemDiv) itemDiv.classList.add("dragging-item");
+
+        let rafId = null;
+        let outOfBounds = false;
+
+        const moveHandler = (me) => {
+            if (!active) return;
+            const currentX = me.clientX;
+            const currentY = me.clientY;
+            if (rafId) return;
+            rafId = requestAnimationFrame(() => {
+                const itemHeight = calcItemHeight(item);
+                const blockRect = targetBlock.getBoundingClientRect();
+                const isOutOfBounds = currentX < blockRect.left || currentX > blockRect.right || currentY < blockRect.top || currentY > blockRect.bottom;
+                let newX = Math.max(0, Math.min(originalItemX + (currentX - startX) / state.state.zoom, targetBlock.clientWidth - BLOCK_ITEM_WIDTH));
+                let newY = Math.max(0, Math.min(originalItemY + (currentY - startY) / state.state.zoom, targetBlock.clientHeight - itemHeight));
+                item.x = newX;
+                item.y = newY;
+                if (itemDiv) {
+                    itemDiv.style.left = newX + "px";
+                    itemDiv.style.top = newY + "px";
+                    if (isOutOfBounds) {
+                        itemDiv.classList.add("drop-delete");
+                        itemDiv.classList.remove("drop-valid", "drop-invalid");
+                    } else {
+                        itemDiv.classList.remove("drop-delete");
+                        const overlaps = isItemOverlapWithOthers(blockObj, item, newX, newY);
+                        itemDiv.classList.toggle("drop-valid", !overlaps);
+                        itemDiv.classList.toggle("drop-invalid", overlaps);
                     }
-                })(), f = null
-            }))
+                }
+                outOfBounds = isOutOfBounds;
+                rafId = null;
+            });
         };
-        let k = () => {
-            s = !1, f && cancelAnimationFrame(f), h && h.classList.remove("dragging-item", "drop-valid", "drop-invalid", "drop-delete");
-            document.removeEventListener("pointermove", y), document.removeEventListener("pointerup", k);
+
+        const upHandler = () => {
+            active = false;
+            if (rafId) cancelAnimationFrame(rafId);
+            if (itemDiv) {
+                itemDiv.classList.remove("dragging-item", "drop-valid", "drop-invalid", "drop-delete");
+            }
+            document.removeEventListener("pointermove", moveHandler);
+            document.removeEventListener("pointerup", upHandler);
+
             if (outOfBounds) {
-                state.removeConnectionsForBlockItem(o.id, r);
-                let oldItems = JSON.parse(JSON.stringify(o.items));
-                let newItems = o.items.filter((e, t) => t !== r);
-                state.updateBlock(o.id, { items: newItems });
-				history.push(HistoryActions.itemDelete(o.id, r, oldItems));
-				showToast("Элемент удален", "info");
+                state.removeConnectionsForBlockItem(blockObj.id, itemIndex);
+                const newItems = blockObj.items.filter((_, i) => i !== itemIndex);
+                state.updateBlock(blockObj.id, { items: newItems });
+                history.push(HistoryActions.itemDelete(blockObj.id, itemIndex, oldItemsSnapshot));
+                showToast("Элемент удален", "info");
                 events.emit("state:changed");
                 return;
             }
-            if (isItemOverlapWithOthers(o, i, i.x, i.y)) return i.x = c, i.y = d, void(h && (h.style.left = c + "px", h.style.top = d + "px"));
-            if (i.x !== c || i.y !== d) {
-                let e = i.x, t = i.y;
-                history.push(HistoryActions.itemMove(o.id, r, c, d, e, t));
+            if (isItemOverlapWithOthers(blockObj, item, item.x, item.y)) {
+                // возвращаем на исходную позицию
+                item.x = originalItemX;
+                item.y = originalItemY;
+                if (itemDiv) {
+                    itemDiv.style.left = originalItemX + "px";
+                    itemDiv.style.top = originalItemY + "px";
+                }
+                return;
             }
-            this.renderConnections(), events.emit("state:changed")
+            if (item.x !== originalItemX || item.y !== originalItemY) {
+                history.push(HistoryActions.itemMove(blockObj.id, itemIndex, originalItemX, originalItemY, item.x, item.y));
+            }
+            renderer.renderConnections();
+            events.emit("state:changed");
         };
-        document.addEventListener("pointermove", y), document.addEventListener("pointerup", k)
+
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
     },
 
         initDrag(e, t, n) {
