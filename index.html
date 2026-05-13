@@ -978,6 +978,392 @@ const history = new class {
     }
 }(30);
 
+// ========== ИСТОРИЯ ДЕЙСТВИЙ (ФАБРИКИ) ==========
+const HistoryActions = {
+    // Перемещение блоков (массив изменений)
+    move(blocksData) {
+        return {
+            type: "move",
+            undo: () => {
+                blocksData.forEach(d => state.updateBlockPosition(d.id, d.oldX, d.oldY));
+                events.emit("state:changed");
+            },
+            redo: () => {
+                blocksData.forEach(d => state.updateBlockPosition(d.id, d.newX, d.newY));
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Изменение размера блока
+    resize(blockId, oldWidth, oldHeight, newWidth, newHeight, oldItemsPos, newItemsPos) {
+        return {
+            type: "resize",
+            undo: () => {
+                const block = state.getBlock(blockId);
+                if (!block) return;
+                block.width = oldWidth;
+                block.height = oldHeight;
+                oldItemsPos.forEach((pos, idx) => {
+                    if (block.items[idx]) {
+                        block.items[idx].x = pos.x;
+                        block.items[idx].y = pos.y;
+                    }
+                });
+                const el = document.getElementById(blockId);
+                if (el) {
+                    el.style.width = oldWidth + "px";
+                    el.style.height = oldHeight + "px";
+                    renderer.renderBlockItems(el, block.items, block.bgColor);
+                }
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const block = state.getBlock(blockId);
+                if (!block) return;
+                block.width = newWidth;
+                block.height = newHeight;
+                newItemsPos.forEach((pos, idx) => {
+                    if (block.items[idx]) {
+                        block.items[idx].x = pos.x;
+                        block.items[idx].y = pos.y;
+                    }
+                });
+                const el = document.getElementById(blockId);
+                if (el) {
+                    el.style.width = newWidth + "px";
+                    el.style.height = newHeight + "px";
+                    renderer.renderBlockItems(el, block.items, block.bgColor);
+                }
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Удаление блоков и связей
+    delete(blocks, connections) {
+        const blocksCopy = blocks.map(b => cloneBlock(b));
+        const connsCopy = connections.map(c => cloneConnection(c));
+        return {
+            type: "delete",
+            undo: () => {
+                connsCopy.forEach(c => state.state.connections.push(cloneConnection(c)));
+                blocksCopy.forEach(b => {
+                    state.state.blocks = [...state.state.blocks, cloneBlock(b)];
+                    renderer.renderBlock(state.getBlock(b.id));
+                });
+                events.emit("state:changed");
+            },
+            redo: () => {
+                connsCopy.forEach(c => {
+                    state.state.connections = state.state.connections.filter(cc => cc.id !== c.id);
+                });
+                blocksCopy.forEach(b => {
+                    const el = document.getElementById(b.id);
+                    if (el) el.remove();
+                    state.state.blocks = state.state.blocks.filter(bb => bb.id !== b.id);
+                    state.removeConnectionsForBlock(b.id);
+                });
+                state.clearSelection();
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Дублирование блоков
+    duplicate(newIds, oldBlocks) {
+        const newBlocksData = newIds.map(id => cloneBlock(state.getBlock(id)));
+        const oldBlocksData = oldBlocks.map(b => cloneBlock(b));
+        return {
+            type: "duplicate",
+            undo: () => {
+                newIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.remove();
+                    state.state.blocks = state.state.blocks.filter(b => b.id !== id);
+                });
+                state.selectBlock(null);
+                oldBlocksData.forEach(b => state.selectBlock(b.id, true));
+                events.emit("state:changed");
+            },
+            redo: () => {
+                newIds.forEach(id => {
+                    const block = newBlocksData.find(b => b.id === id);
+                    if (block) state.addBlock(block);
+                });
+                state.selectBlock(null);
+                newIds.forEach(id => state.selectBlock(id, true));
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Создание блока (шаблон)
+    create(blockId, blockData) {
+        return {
+            type: "create",
+            undo: () => {
+                state.state.blocks = state.state.blocks.filter(b => b.id !== blockId);
+                const el = document.getElementById(blockId);
+                if (el) el.remove();
+                state.clearSelection();
+                events.emit("state:changed");
+            },
+            redo: () => {
+                state.addBlock(blockData);
+                state.selectBlock(blockId);
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Добавление связи
+    connectionAdd(connId, connData) {
+        return {
+            type: "conn-add",
+            undo: () => state.removeConnection(connId),
+            redo: () => state.addConnection(connData)
+        };
+    },
+
+    // Удаление связи
+    connectionRemove(connId, connBackup) {
+        return {
+            type: "conn-del",
+            undo: () => state.addConnection(connBackup),
+            redo: () => state.removeConnection(connId)
+        };
+    },
+
+    // Изменение свойства связи
+    connectionProp(connId, prop, oldVal, newVal) {
+        return {
+            type: "conn-prop",
+            undo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn) conn[prop] = oldVal;
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn) conn[prop] = newVal;
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Добавление waypoint
+    waypointAdd(connId, waypoint, index) {
+        return {
+            type: "wp-add",
+            undo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints) conn.waypoints.splice(index, 1);
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn) {
+                    if (!conn.waypoints) conn.waypoints = [];
+                    conn.waypoints.splice(index, 0, waypoint);
+                }
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Удаление waypoint
+    waypointRemove(connId, waypoint, index) {
+        return {
+            type: "wp-del",
+            undo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn) {
+                    if (!conn.waypoints) conn.waypoints = [];
+                    conn.waypoints.splice(index, 0, waypoint);
+                }
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints) conn.waypoints.splice(index, 1);
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Перемещение абсолютного waypoint
+    waypointMove(connId, idx, oldX, oldY, newX, newY) {
+        return {
+            type: "wp-move",
+            undo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints && conn.waypoints[idx]) {
+                    conn.waypoints[idx].offsetX = oldX;
+                    conn.waypoints[idx].offsetY = oldY;
+                }
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints && conn.waypoints[idx]) {
+                    conn.waypoints[idx].offsetX = newX;
+                    conn.waypoints[idx].offsetY = newY;
+                }
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Перемещение относительного waypoint (t)
+    waypointMoveRelative(connId, idx, oldT, newT) {
+        return {
+            type: "wp-move-relative",
+            undo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints && conn.waypoints[idx]) conn.waypoints[idx].t = oldT;
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints && conn.waypoints[idx]) conn.waypoints[idx].t = newT;
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Изменение стиля waypoint
+    waypointStyle(connId, idx, prop, oldVal, newVal) {
+        return {
+            type: "wp-style",
+            undo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints && conn.waypoints[idx]) {
+                    if (!conn.waypoints[idx].style) conn.waypoints[idx].style = {};
+                    conn.waypoints[idx].style[prop] = oldVal;
+                }
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn && conn.waypoints && conn.waypoints[idx]) {
+                    if (!conn.waypoints[idx].style) conn.waypoints[idx].style = {};
+                    conn.waypoints[idx].style[prop] = newVal;
+                }
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Перемещение подписи связи
+    labelMove(connId, oldX, oldY, newX, newY) {
+        return {
+            type: "label-move",
+            undo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn) { conn.labelOffsetX = oldX; conn.labelOffsetY = oldY; }
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn) { conn.labelOffsetX = newX; conn.labelOffsetY = newY; }
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Перемещение элемента внутри блока
+    itemMove(blockId, itemIdx, oldX, oldY, newX, newY) {
+        return {
+            type: "item-move",
+            undo: () => state.updateItem(blockId, itemIdx, { x: oldX, y: oldY }),
+            redo: () => state.updateItem(blockId, itemIdx, { x: newX, y: newY })
+        };
+    },
+
+    // Удаление элемента из блока
+    itemDelete(blockId, itemIdx, oldItems) {
+        return {
+            type: "item-delete",
+            undo: () => state.updateBlock(blockId, { items: oldItems }),
+            redo: () => {
+                state.removeConnectionsForBlockItem(blockId, itemIdx);
+                const newItems = state.getBlock(blockId).items.filter((_, i) => i !== itemIdx);
+                state.updateBlock(blockId, { items: newItems });
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Изменение порядка слоёв
+    order(blockId, oldIndex, newIndex) {
+        return {
+            type: "order",
+            undo: () => {
+                const b = state.state.blocks.splice(newIndex, 1)[0];
+                state.state.blocks.splice(oldIndex, 0, b);
+                events.emit("state:changed");
+            },
+            redo: () => {
+                const b = state.state.blocks.splice(oldIndex, 1)[0];
+                state.state.blocks.splice(newIndex, 0, b);
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Перемещение стрелками
+    arrow(blocksData) {
+        return {
+            type: "arrow",
+            undo: () => {
+                blocksData.forEach(d => state.updateBlockPosition(d.id, d.oldX, d.oldY));
+                events.emit("state:changed");
+            },
+            redo: () => {
+                blocksData.forEach(d => state.updateBlockPosition(d.id, d.newX, d.newY));
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Выравнивание блоков
+    align(blocksData) {
+        return {
+            type: "align",
+            undo: () => {
+                blocksData.oldPositions.forEach(p => {
+                    const block = state.getBlock(p.id);
+                    if (block) { block.x = p.x; block.y = p.y; renderer._onMoving({ id: p.id, x: p.x, y: p.y }); }
+                });
+                events.emit("state:changed");
+            },
+            redo: () => {
+                blocksData.newPositions.forEach(p => {
+                    const block = state.getBlock(p.id);
+                    if (block) { block.x = p.x; block.y = p.y; renderer._onMoving({ id: p.id, x: p.x, y: p.y }); }
+                });
+                events.emit("state:changed");
+            }
+        };
+    },
+
+    // Массовая блокировка / разблокировка
+    massLock(ids, oldStates, newLockState) {
+        return {
+            type: "mass-lock",
+            undo: () => {
+                oldStates.forEach(s => state.lockBlock(s.id, s.wasLocked));
+                events.emit("state:changed");
+            },
+            redo: () => {
+                ids.forEach(id => state.lockBlock(id, newLockState));
+                events.emit("state:changed");
+            }
+        };
+    }
+};
+
 function cloneBlock(e) {
     return {
         id: e.id,
@@ -1043,12 +1429,14 @@ const renderer = {
         this.setupCanvasDelegation(),
         this.setupConnections()
     },
+
     updateZIndices() {
         state.state.blocks.forEach((e, t) => {
             let n = document.getElementById(e.id);
             n && (n.style.zIndex = t + 2);
         });
     },
+
     renderBlock(e) {
         let t = document.getElementById(e.id);
         t && t.remove(), t = document.createElement("div"), t.className = "block" + (e.isLocked ? "" : " unlocked") + (state.state.selectedIds.has(e.id) ? " selected" : ""), t.id = e.id, t.dataset.blockId = e.id, t.style.cssText = `left:${e.x}px;top:${e.y}px;width:${e.width}px;height:${e.height}px;background-color:${"transparent"===e.bgColor?"transparent":e.bgColor}`;
@@ -1067,7 +1455,9 @@ const renderer = {
         canvasWrapper.appendChild(t);
         t.addEventListener("animationend", function() { this.classList.remove("block-entering"); this.style.animation = ''; }, { once: true });
         this.updateZIndices();
-    },    renderBlockItems(e, t, n) {
+    },
+
+    renderBlockItems(e, t, n) {
         let o = e.querySelector(".block-items-container"),
             i = getOptimalTextColor(n);
         for (; o.children.length > t.length;) o.lastElementChild.remove();
@@ -1080,10 +1470,12 @@ const renderer = {
             n.dataset.dk === s && n.dataset.iv === l && n.dataset.lb === a || (n.dataset.dk = s, n.dataset.iv = l, n.dataset.lb = a, n.innerHTML = (l ? '<div class="inv-num">' + l + "</div>" : "") + renderIconHTML(s) + '<span class="item-label">' + a + "</span>")
         })
     },
+
     _onMoving(e) {
         let t = document.getElementById(e.id);
         t && (t.style.left = e.x + "px", t.style.top = e.y + "px"), this.renderConnections()
     },
+
     patchBlockDOM(e) {
         let t = document.getElementById(e.id);
         if (!t) return;
@@ -1106,6 +1498,7 @@ const renderer = {
         this.renderBlockItems(t, e.items, e.bgColor);
         this.renderConnections()
     },
+
     updateSelectionUI(e) {
         canvasWrapper.querySelectorAll(".block.selected").forEach(e => e.classList.remove("selected")),
         e.forEach(e => {
@@ -1113,6 +1506,7 @@ const renderer = {
             t && t.classList.add("selected")
         }), this.updateGeneralUI()
     },
+
     updateGeneralUI() {
         let e = state.state.blocks.length;
         document.getElementById("blockCount").textContent = "Блоков: " + e, document.getElementById("emptyHint").style.display = e ? "none" : "block";
@@ -1137,9 +1531,11 @@ const renderer = {
             n ? (Y(n, e.connId, e.index), l.classList.add("open")) : l.classList.remove("open"), s.classList.remove("open")
         } else s.classList.remove("open"), l.classList.remove("open")
     },
+
     applyZoom(e) {
         canvasWrapper.style.transform = "scale(" + e + ")", document.getElementById("zoomLabel").textContent = Math.round(100 * e) + "%", this.updateCanvasSize(), zoomController && zoomController.updateMinimap(), this.renderConnections()
     },
+
     updateCanvasSize() {
         let e = 0,
             t = 0;
@@ -1151,6 +1547,7 @@ const renderer = {
             i = Math.max(workspace.clientHeight / n, t + CANVAS_PADDING);
         canvasWrapper.style.width = o + "px", canvasWrapper.style.height = i + "px", scrollArea && (scrollArea.style.width = Math.ceil(o * n) + "px", scrollArea.style.height = Math.ceil(i * n) + "px")
     },
+
     setupCanvasDelegation() {
         canvasWrapper.addEventListener("mouseleave", () => {
             canvasWrapper.querySelectorAll(".block.preview-hover").forEach(b => b.classList.remove("preview-hover"));
@@ -1215,12 +1612,17 @@ const renderer = {
                 let t = parseInt(e.target.closest(".block-item").dataset.itemIndex);
                 return void this.initItemDrag(e, n, i, i.items[t])
             }
-            state.bringToFront(o), e.shiftKey ? state.selectBlock(o, !0) : state.state.selectedIds.has(o) || state.selectBlock(o, !1), i.isLocked || this.initDrag(e, n, i)
+            state.bringToFront(o);
+e.shiftKey ? state.selectBlock(o, !0) : state.state.selectedIds.has(o) || state.selectBlock(o, !1);
+// Проверяем блокировку по наличию класса "unlocked" у DOM-элемента блока
+const isBlockLocked = !n.classList.contains("unlocked");
+if (!isBlockLocked) this.initDrag(e, n, i);
         }), canvasWrapper.addEventListener("dblclick", e => {
             let t = e.target.closest(".block");
             !t || e.target.closest(".block-item") || e.target.closest("[data-action]") || de(t.dataset.blockId)
         })
     },
+
     initItemDrag(e, t, o, i) {
         let s = !0,
             l = e.clientX,
@@ -1295,6 +1697,7 @@ const renderer = {
         };
         document.addEventListener("pointermove", y), document.addEventListener("pointerup", k)
     },
+
     initDrag(e, t, n) {
         let o = e.clientX,
             i = e.clientY,
@@ -1383,6 +1786,7 @@ const renderer = {
             };
         document.addEventListener("pointermove", u), document.addEventListener("pointerup", p)
     },
+
     initResize(e, t, o) {
         let i = e.clientX,
             s = e.clientY,
@@ -1441,187 +1845,160 @@ const renderer = {
             };
         document.addEventListener("pointermove", p), document.addEventListener("pointerup", f)
     },
+
+    // ========== ОРИГИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ renderConnections (без рефакторинга) ==========
     renderConnections: function() {
-    let svg = document.getElementById("guidesSvg");
-    if (!this._connElements) this._connElements = new Map;
-    const existingIds = new Set(state.state.connections.map(c => c.id));
-    for (const [id, group] of this._connElements) {
-        if (!existingIds.has(id)) {
-            group.remove();
-            this._connElements.delete(id);
+        let svg = document.getElementById("guidesSvg");
+        if (!this._connElements) this._connElements = new Map;
+        const existingIds = new Set(state.state.connections.map(c => c.id));
+        for (const [id, group] of this._connElements) {
+            if (!existingIds.has(id)) {
+                group.remove();
+                this._connElements.delete(id);
+            }
         }
-    }
-    state.state.connections.forEach(conn => {
-        let group = this._connElements.get(conn.id);
-        if (group) { group.remove(); this._connElements.delete(conn.id); }
-        group = document.createElementNS(SVG_NS, "g");
-
-        // Получаем d-строку и общую длину, игнорируя относительные точки
-        let pathData = buildConnectionPath(conn);
-        if (!pathData) return; // не удалось построить (блоки не найдены)
-        let dString = pathData.d;
-        let totalLen = pathData.totalLen;
-
-        // Вычисляем абсолютные позиции для всех waypoints (включая относительные)
-        let waypoints = conn.waypoints || [];
-        let absWaypoints = []; // массив {x, y, style} для каждого waypoint
-        let tempPath = document.createElementNS(SVG_NS, "path");
-        tempPath.setAttribute("d", dString);
-
-        waypoints.forEach(wp => {
-            let style = wp.style || {};
-            if (wp.t !== undefined) {
-                // Относительная точка: находим позицию на кривой по параметру t
-                let targetDist = wp.t * totalLen;
-                let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
-                absWaypoints.push({ x: pt.x, y: pt.y, style });
-            } else {
-                // Абсолютная точка
-                let ax = wp.offsetX, ay = wp.offsetY;
-                if (wp.blockId) {
-                    let b = state.getBlock(wp.blockId);
-                    if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+        state.state.connections.forEach(conn => {
+            let group = this._connElements.get(conn.id);
+            if (group) { group.remove(); this._connElements.delete(conn.id); }
+            group = document.createElementNS(SVG_NS, "g");
+            let pathData = buildConnectionPath(conn);
+            if (!pathData) return;
+            let dString = pathData.d;
+            let totalLen = pathData.totalLen;
+            let waypoints = conn.waypoints || [];
+            let absWaypoints = [];
+            let tempPath = document.createElementNS(SVG_NS, "path");
+            tempPath.setAttribute("d", dString);
+            waypoints.forEach(wp => {
+                let style = wp.style || {};
+                if (wp.t !== undefined) {
+                    let targetDist = wp.t * totalLen;
+                    let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+                    absWaypoints.push({ x: pt.x, y: pt.y, style });
+                } else {
+                    let ax = wp.offsetX, ay = wp.offsetY;
+                    if (wp.blockId) {
+                        let b = state.getBlock(wp.blockId);
+                        if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+                    }
+                    absWaypoints.push({ x: ax, y: ay, style });
                 }
-                absWaypoints.push({ x: ax, y: ay, style });
+            });
+            let strokeColor = conn.stroke || "#e8a030", strokeW = conn.strokeWidth || 2;
+            let dash = conn.dashArray && conn.dashArray !== "none" ? conn.dashArray : "none";
+            let startMarker = conn.startMarker || "none", endMarker = conn.endMarker || "triangle";
+            let startMarkerUrl = startMarker !== "none" ? `url(#marker-${startMarker})` : "none";
+            let endMarkerUrl = endMarker !== "none" ? `url(#marker-${endMarker})` : "none";
+            let path = document.createElementNS(SVG_NS, "path");
+            path.setAttribute("d", dString);
+            path.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === conn.id ? " selected" : ""));
+            path.setAttribute("stroke", strokeColor);
+            path.setAttribute("stroke-width", strokeW);
+            if (dash !== "none") path.setAttribute("stroke-dasharray", dash);
+            if (startMarkerUrl !== "none") path.setAttribute("marker-start", startMarkerUrl);
+            if (endMarkerUrl !== "none") path.setAttribute("marker-end", endMarkerUrl);
+            group.appendChild(path);
+            if (state.state.selectedConnectionId === conn.id) {
+                let glow = document.createElementNS(SVG_NS, "path");
+                glow.setAttribute("d", dString);
+                glow.setAttribute("class", "glow-line");
+                glow.setAttribute("stroke", "#fff");
+                glow.setAttribute("stroke-width", strokeW + 2);
+                glow.setAttribute("filter", "url(#neonGlow)");
+                glow.style.animation = "neonPulse 2s ease-in-out infinite alternate";
+                if (dash !== "none") glow.setAttribute("stroke-dasharray", dash);
+                group.appendChild(glow);
             }
+            let hit = document.createElementNS(SVG_NS, "path");
+            hit.setAttribute("d", dString);
+            hit.setAttribute("class", "connection-hit");
+            hit.dataset.connId = conn.id;
+            group.appendChild(hit);
+            absWaypoints.forEach((pt, idx) => {
+                if (!(state.state.selectedConnectionId === conn.id || (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id))) return;
+                let style = waypoints[idx].style || {};
+                let color = style.color || "#e8a030";
+                let shape = style.shape || "circle";
+                let size = { small: 4, medium: 6, large: 8 }[style.size] || 6;
+                let isSelected = state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id && state.state.selectedWaypoint.index === idx;
+                let el;
+                if (shape === "circle") {
+                    el = document.createElementNS(SVG_NS, "circle");
+                    el.setAttribute("cx", pt.x); el.setAttribute("cy", pt.y); el.setAttribute("r", size);
+                } else if (shape === "square") {
+                    el = document.createElementNS(SVG_NS, "rect");
+                    el.setAttribute("x", pt.x - size); el.setAttribute("y", pt.y - size);
+                    el.setAttribute("width", size*2); el.setAttribute("height", size*2); el.setAttribute("rx", 2);
+                } else if (shape === "diamond") {
+                    el = document.createElementNS(SVG_NS, "polygon");
+                    el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y} ${pt.x},${pt.y + size} ${pt.x - size},${pt.y}`);
+                } else if (shape === "cross") {
+                    el = document.createElementNS(SVG_NS, "g");
+                    let l1 = document.createElementNS(SVG_NS, "line");
+                    l1.setAttribute("x1", pt.x - size); l1.setAttribute("y1", pt.y - size);
+                    l1.setAttribute("x2", pt.x + size); l1.setAttribute("y2", pt.y + size);
+                    l1.setAttribute("stroke", color); l1.setAttribute("stroke-width", "2");
+                    let l2 = document.createElementNS(SVG_NS, "line");
+                    l2.setAttribute("x1", pt.x + size); l2.setAttribute("y1", pt.y - size);
+                    l2.setAttribute("x2", pt.x - size); l2.setAttribute("y2", pt.y + size);
+                    l2.setAttribute("stroke", color); l2.setAttribute("stroke-width", "2");
+                    el.appendChild(l1); el.appendChild(l2);
+                } else if (shape === "triangle") {
+                    el = document.createElementNS(SVG_NS, "polygon");
+                    el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y + size} ${pt.x - size},${pt.y + size}`);
+                }
+                if (shape !== "cross") {
+                    el.setAttribute("fill", color);
+                    el.setAttribute("stroke", isSelected ? "#fff" : "var(--surface)");
+                    el.setAttribute("stroke-width", "2");
+                }
+                el.setAttribute("class", "waypoint-circle" + (isSelected ? " selected" : ""));
+                el.dataset.connId = conn.id;
+                el.dataset.index = idx;
+                el.style.cursor = "pointer";
+                el.style.pointerEvents = "auto";
+                group.appendChild(el);
+            });
+            if (conn.label && conn.label.trim()) {
+                let midPt = tempPath.getPointAtLength(totalLen / 2);
+                let angle = conn.labelAngle || 0;
+                let offX = conn.labelOffsetX || 0;
+                let offY = conn.labelOffsetY || 0;
+                let pos = { x: midPt.x + offX, y: midPt.y + offY };
+                let text = document.createElementNS(SVG_NS, "text");
+                text.setAttribute("x", pos.x);
+                text.setAttribute("y", pos.y);
+                text.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
+                text.setAttribute("class", "connection-label");
+                text.textContent = conn.label;
+                let bbox;
+                try { group.appendChild(text); bbox = text.getBBox(); group.removeChild(text); } catch(e) { bbox = { width: 0, height: 0 }; }
+                if (bbox.width > 0) {
+                    let bg = document.createElementNS(SVG_NS, "rect");
+                    let pad = 4;
+                    bg.setAttribute("x", pos.x - bbox.width/2 - pad);
+                    bg.setAttribute("y", pos.y - bbox.height/2 - pad);
+                    bg.setAttribute("width", bbox.width + 2*pad);
+                    bg.setAttribute("height", bbox.height + 2*pad);
+                    bg.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
+                    bg.setAttribute("class", "connection-label-bg");
+                    group.appendChild(bg);
+                }
+                group.appendChild(text);
+                let dragHandle = document.createElementNS(SVG_NS, "rect");
+                dragHandle.setAttribute("x", pos.x - 20);
+                dragHandle.setAttribute("y", pos.y - 10);
+                dragHandle.setAttribute("width", 40);
+                dragHandle.setAttribute("height", 20);
+                dragHandle.setAttribute("class", "label-drag-handle");
+                dragHandle.dataset.connId = conn.id;
+                group.appendChild(dragHandle);
+            }
+            svg.appendChild(group);
+            this._connElements.set(conn.id, group);
         });
+    },
 
-        // Отрисовка пути
-        let strokeColor = conn.stroke || "#e8a030", strokeW = conn.strokeWidth || 2;
-        let dash = conn.dashArray && conn.dashArray !== "none" ? conn.dashArray : "none";
-        let startMarker = conn.startMarker || "none", endMarker = conn.endMarker || "triangle";
-        let startMarkerUrl = startMarker !== "none" ? `url(#marker-${startMarker})` : "none";
-        let endMarkerUrl = endMarker !== "none" ? `url(#marker-${endMarker})` : "none";
-
-        let path = document.createElementNS(SVG_NS, "path");
-        path.setAttribute("d", dString);
-        path.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === conn.id ? " selected" : ""));
-        path.setAttribute("stroke", strokeColor);
-        path.setAttribute("stroke-width", strokeW);
-        if (dash !== "none") path.setAttribute("stroke-dasharray", dash);
-        if (startMarkerUrl !== "none") path.setAttribute("marker-start", startMarkerUrl);
-        if (endMarkerUrl !== "none") path.setAttribute("marker-end", endMarkerUrl);
-        group.appendChild(path);
-
-        // Свечение для выделенной связи
-        if (state.state.selectedConnectionId === conn.id) {
-            let glow = document.createElementNS(SVG_NS, "path");
-            glow.setAttribute("d", dString);
-            glow.setAttribute("class", "glow-line");
-            glow.setAttribute("stroke", "#fff");
-            glow.setAttribute("stroke-width", strokeW + 2);
-            glow.setAttribute("filter", "url(#neonGlow)");
-            glow.style.animation = "neonPulse 2s ease-in-out infinite alternate";
-            if (dash !== "none") glow.setAttribute("stroke-dasharray", dash);
-            group.appendChild(glow);
-        }
-
-        // Невидимая широкая линия для кликабельности
-        let hit = document.createElementNS(SVG_NS, "path");
-        hit.setAttribute("d", dString);
-        hit.setAttribute("class", "connection-hit");
-        hit.dataset.connId = conn.id;
-        group.appendChild(hit);
-
-        // Отрисовка кружочков waypoints
-        absWaypoints.forEach((pt, idx) => {
-            let wp = waypoints[idx];
-            if (!wp) return;
-            // Показываем точку только если выделена связь или любая точка на ней
-if (!(state.state.selectedConnectionId === conn.id ||
-      (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id))) return;
-	  		let style = wp.style || {};
-            let color = style.color || "#e8a030";
-            let shape = style.shape || "circle";
-            let size = { small: 4, medium: 6, large: 8 }[style.size] || 6;
-            let isSelected = state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id && state.state.selectedWaypoint.index === idx;
-
-            let el;
-            if (shape === "circle") {
-                el = document.createElementNS(SVG_NS, "circle");
-                el.setAttribute("cx", pt.x); el.setAttribute("cy", pt.y); el.setAttribute("r", size);
-            } else if (shape === "square") {
-                el = document.createElementNS(SVG_NS, "rect");
-                el.setAttribute("x", pt.x - size); el.setAttribute("y", pt.y - size);
-                el.setAttribute("width", size*2); el.setAttribute("height", size*2); el.setAttribute("rx", 2);
-            } else if (shape === "diamond") {
-                el = document.createElementNS(SVG_NS, "polygon");
-                el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y} ${pt.x},${pt.y + size} ${pt.x - size},${pt.y}`);
-            } else if (shape === "cross") {
-                el = document.createElementNS(SVG_NS, "g");
-                let l1 = document.createElementNS(SVG_NS, "line");
-                l1.setAttribute("x1", pt.x - size); l1.setAttribute("y1", pt.y - size);
-                l1.setAttribute("x2", pt.x + size); l1.setAttribute("y2", pt.y + size);
-                l1.setAttribute("stroke", color); l1.setAttribute("stroke-width", "2");
-                let l2 = document.createElementNS(SVG_NS, "line");
-                l2.setAttribute("x1", pt.x + size); l2.setAttribute("y1", pt.y - size);
-                l2.setAttribute("x2", pt.x - size); l2.setAttribute("y2", pt.y + size);
-                l2.setAttribute("stroke", color); l2.setAttribute("stroke-width", "2");
-                el.appendChild(l1); el.appendChild(l2);
-            } else if (shape === "triangle") {
-                el = document.createElementNS(SVG_NS, "polygon");
-                el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y + size} ${pt.x - size},${pt.y + size}`);
-            }
-            if (shape !== "cross") {
-                el.setAttribute("fill", color);
-                el.setAttribute("stroke", isSelected ? "#fff" : "var(--surface)");
-                el.setAttribute("stroke-width", "2");
-            }
-            el.setAttribute("class", "waypoint-circle" + (isSelected ? " selected" : ""));
-            el.dataset.connId = conn.id;
-            el.dataset.index = idx;
-            el.style.cursor = "pointer";
-            el.style.pointerEvents = "auto";
-            group.appendChild(el);
-        });
-
-        // Подпись
-        if (conn.label && conn.label.trim()) {
-            // Используем середину первого сегмента или всей линии
-            let mid = absWaypoints.length > 0 ? {
-                x: (conn.from && conn.to ? (getBlockRectById(conn.from.blockId, conn.from.itemIndex)?.x + getBlockRectById(conn.to.blockId, conn.to.itemIndex)?.x) / 2 : 0),
-                y: 0 // упростим: вычислим из d-строки
-            } : { x: 0, y: 0 };
-            // Быстрый способ: найдём точку на середине длины
-            let midPt = tempPath.getPointAtLength(totalLen / 2);
-            let angle = conn.labelAngle || 0;
-            let offX = conn.labelOffsetX || 0;
-            let offY = conn.labelOffsetY || 0;
-            let pos = { x: midPt.x + offX, y: midPt.y + offY };
-            let text = document.createElementNS(SVG_NS, "text");
-            text.setAttribute("x", pos.x);
-            text.setAttribute("y", pos.y);
-            text.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
-            text.setAttribute("class", "connection-label");
-            text.textContent = conn.label;
-            let bbox;
-            try { group.appendChild(text); bbox = text.getBBox(); group.removeChild(text); } catch(e) { bbox = { width: 0, height: 0 }; }
-            if (bbox.width > 0) {
-                let bg = document.createElementNS(SVG_NS, "rect");
-                let pad = 4;
-                bg.setAttribute("x", pos.x - bbox.width/2 - pad);
-                bg.setAttribute("y", pos.y - bbox.height/2 - pad);
-                bg.setAttribute("width", bbox.width + 2*pad);
-                bg.setAttribute("height", bbox.height + 2*pad);
-                bg.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
-                bg.setAttribute("class", "connection-label-bg");
-                group.appendChild(bg);
-            }
-            group.appendChild(text);
-            let dragHandle = document.createElementNS(SVG_NS, "rect");
-            dragHandle.setAttribute("x", pos.x - 20);
-            dragHandle.setAttribute("y", pos.y - 10);
-            dragHandle.setAttribute("width", 40);
-            dragHandle.setAttribute("height", 20);
-            dragHandle.setAttribute("class", "label-drag-handle");
-            dragHandle.dataset.connId = conn.id;
-            group.appendChild(dragHandle);
-        }
-
-        svg.appendChild(group);
-        this._connElements.set(conn.id, group);
-    });
-},
     setupConnectionEdit: function() {
         const e = document.getElementById("guidesSvg");
         e.addEventListener("dblclick", e => {
@@ -1633,301 +2010,281 @@ if (!(state.state.selectedConnectionId === conn.id ||
             t && (e.preventDefault(), renderer.addWaypointFromEvent(e, t.dataset.connId))
         })
     },
+
     addWaypointFromEvent: function(e, t) {
-    let conn = state.state.connections.find(c => c.id === t);
-    if (!conn) return;
-    let wsRect = canvasWrapper.getBoundingClientRect(),
-        cx = (e.clientX - wsRect.left) / state.state.zoom,
-        cy = (e.clientY - wsRect.top) / state.state.zoom,
-        from = getBlockRectById(conn.from.blockId, conn.from.itemIndex),
-        to = getBlockRectById(conn.to.blockId, conn.to.itemIndex);
-    if (!from || !to) return;
+        let conn = state.state.connections.find(c => c.id === t);
+        if (!conn) return;
+        let wsRect = canvasWrapper.getBoundingClientRect(),
+            cx = (e.clientX - wsRect.left) / state.state.zoom,
+            cy = (e.clientY - wsRect.top) / state.state.zoom,
+            from = getBlockRectById(conn.from.blockId, conn.from.itemIndex),
+            to = getBlockRectById(conn.to.blockId, conn.to.itemIndex);
+        if (!from || !to) return;
 
-    // Начальная и конечная точки портов
-    let startPt, endPt;
-    if (conn.from.side && void 0 !== conn.from.t && null !== conn.from.t) startPt = getPortPoint(from, conn.from.side, conn.from.t);
-    else { let dummy = { x: to.x + to.w / 2, y: to.y + to.h / 2 }; startPt = closestPointOnRect(from, dummy.x, dummy.y) }
-    if (conn.to.side && void 0 !== conn.to.t && null !== conn.to.t) endPt = getPortPoint(to, conn.to.side, conn.to.t);
-    else { let dummy = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; endPt = closestPointOnRect(to, dummy.x, dummy.y) }
+        let startPt, endPt;
+        if (conn.from.side && void 0 !== conn.from.t && null !== conn.from.t) startPt = getPortPoint(from, conn.from.side, conn.from.t);
+        else { let dummy = { x: to.x + to.w / 2, y: to.y + to.h / 2 }; startPt = closestPointOnRect(from, dummy.x, dummy.y) }
+        if (conn.to.side && void 0 !== conn.to.t && null !== conn.to.t) endPt = getPortPoint(to, conn.to.side, conn.to.t);
+        else { let dummy = { x: from.x + from.w / 2, y: from.y + from.h / 2 }; endPt = closestPointOnRect(to, dummy.x, dummy.y) }
 
-    // Собираем текущие waypoints (копия) и массив всех абсолютных точек
-    let waypoints = conn.waypoints ? [...conn.waypoints] : [];
-    let allPts = [startPt];
-    waypoints.forEach(wp => {
-        if (wp.t !== undefined) {
-            // относительная точка – пока помечаем null, вычислим после построения кривой
-            allPts.push(null);
-        } else {
-            let ax = wp.offsetX, ay = wp.offsetY;
-            if (wp.blockId) {
-                let b = state.getBlock(wp.blockId);
-                if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+        let waypoints = conn.waypoints ? [...conn.waypoints] : [];
+        let allPts = [startPt];
+        waypoints.forEach(wp => {
+            if (wp.t !== undefined) {
+                allPts.push(null);
+            } else {
+                let ax = wp.offsetX, ay = wp.offsetY;
+                if (wp.blockId) {
+                    let b = state.getBlock(wp.blockId);
+                    if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+                }
+                allPts.push({x: ax, y: ay});
             }
-            allPts.push({x: ax, y: ay});
-        }
-    });
-    allPts.push(endPt);
+        });
+        allPts.push(endPt);
 
-    // Убираем null-точки для построения временной кривой
-    let cleanPts = allPts.filter(p => p !== null);
-    if (cleanPts.length < 2) return;
+        let cleanPts = allPts.filter(p => p !== null);
+        if (cleanPts.length < 2) return;
 
-    // Строим временную кривую через новую общую функцию
-    let tempPts = [startPt, ...cleanPts.slice(1, -1), endPt];
-    const stTan = { top: {x:0,y:-1}, bottom: {x:0,y:1}, left: {x:-1,y:0}, right: {x:1,y:0} }[startPt.side || 'right'] || {x:1,y:0};
-    const edTan = { top: {x:0,y:-1}, bottom: {x:0,y:1}, left: {x:-1,y:0}, right: {x:1,y:0} }[endPt.side || 'left'] || {x:-1,y:0};
-    const edTanInv = { x: -edTan.x, y: -edTan.y };
-    let curve = buildCurvePath(tempPts, stTan, edTanInv);
-    let totalLen = curve.totalLen;
+        let tempPts = [startPt, ...cleanPts.slice(1, -1), endPt];
+        const stTan = { top: {x:0,y:-1}, bottom: {x:0,y:1}, left: {x:-1,y:0}, right: {x:1,y:0} }[startPt.side || 'right'] || {x:1,y:0};
+        const edTan = { top: {x:0,y:-1}, bottom: {x:0,y:1}, left: {x:-1,y:0}, right: {x:1,y:0} }[endPt.side || 'left'] || {x:-1,y:0};
+        const edTanInv = { x: -edTan.x, y: -edTan.y };
+        let curve = buildCurvePath(tempPts, stTan, edTanInv);
+        let totalLen = curve.totalLen;
 
-    // Вычисляем абсолютные позиции для всех относительных waypoints
-    let wpIdx = 0;
-    for (let i = 0; i < allPts.length; i++) {
-        if (allPts[i] === null) {
-            let wp = waypoints[wpIdx];
-            let targetDist = wp.t * totalLen;
-            let tempPath = document.createElementNS(SVG_NS, "path");
-            tempPath.setAttribute("d", curve.d);
-            let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
-            allPts[i] = { x: pt.x, y: pt.y };
-            wpIdx++;
-        }
-    }
-
-    // Массив всех абсолютных точек (start + waypoints + end) для поиска сегмента
-    let ptsWithAbs = [startPt];
-    for (let i = 1; i < allPts.length; i++) {
-        ptsWithAbs.push(allPts[i]);
-    }
-
-    // Ищем ближайший сегмент к точке клика (cx, cy) и параметр t от начала пути
-    let bestDist = Infinity, bestT = 0, insertIdx = 0;
-    let cumDist = 0;
-    for (let j = 0; j < ptsWithAbs.length - 1; j++) {
-        let p1 = ptsWithAbs[j], p2 = ptsWithAbs[j + 1];
-        let segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        let dx = p2.x - p1.x, dy = p2.y - p1.y, len2 = dx*dx + dy*dy;
-        let t_seg = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((cx - p1.x)*dx + (cy - p1.y)*dy) / len2));
-        let projX = p1.x + t_seg * dx, projY = p1.y + t_seg * dy;
-        let dist = Math.hypot(cx - projX, cy - projY);
-        if (dist < bestDist) {
-            bestDist = dist;
-            bestT = totalLen > 0 ? (cumDist + t_seg * segLen) / totalLen : 0;
-            insertIdx = j; // индекс сегмента, которому принадлежит проекция (0 = между start и первым waypoint)
-        }
-        cumDist += segLen;
-    }
-
-    // Индекс для вставки в массив waypoints: insertIdx = 0 -> перед первым waypoint, и т.д.
-    let insIdx = Math.min(insertIdx, waypoints.length);
-
-    // Создаём новую относительную точку
-    let newWp = { t: bestT, style: {} };
-    waypoints.splice(insIdx, 0, newWp);
-    conn.waypoints = waypoints; // обновляем соединение
-    state.state.connections = state.state.connections.map(c => c.id === t ? {...c, waypoints: [...waypoints]} : c);
-    state.selectWaypoint(t, insIdx);
-    events.emit("state:changed");
-
-    // Запись в историю для отмены
-    history.push({
-        type: "wp-add",
-        connId: t,
-        waypoint: newWp,
-        index: insIdx,
-        undo: () => {
-            let c = state.state.connections.find(c => c.id === t);
-            if (c && c.waypoints) c.waypoints.splice(insIdx, 1);
-            events.emit("state:changed");
-        },
-        redo: () => {
-            let c = state.state.connections.find(c => c.id === t);
-            if (c) {
-                c.waypoints = c.waypoints || [];
-                c.waypoints.splice(insIdx, 0, newWp);
-            }
-            events.emit("state:changed");
-        }
-    });
-    showToast("Добавлена промежуточная точка", "info");
-},
-    setupWaypointInteraction: function() {
-    const svg = document.getElementById("guidesSvg");
-
-    svg.addEventListener("pointerdown", ev => {
-        let target = ev.target.closest(".waypoint-circle");
-        if (!target) return;
-        ev.stopPropagation(); ev.preventDefault();
-
-        let connId = target.dataset.connId,
-            idx = parseInt(target.dataset.index),
-            conn = state.state.connections.find(c => c.id === connId);
-        if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
-
-        state.selectWaypoint(connId, idx);
-        let wp = conn.waypoints[idx];
-        let wasRelative = wp.t !== undefined;
-        let startClientX = ev.clientX, startClientY = ev.clientY;
-
-        // Для абсолютной точки запоминаем старые координаты
-        let origOffX = wasRelative ? 0 : wp.offsetX;
-        let origOffY = wasRelative ? 0 : wp.offsetY;
-        let origT = wasRelative ? wp.t : 0;
-
-        let active = true;
-
-        let moveHandler = (me) => {
-            if (!active) return;
-            let curConn = state.state.connections.find(c => c.id === connId);
-            if (!curConn || !curConn.waypoints) return;
-            let curWp = curConn.waypoints[idx];
-            if (!curWp) return;
-
-            // Получаем координаты мыши в пространстве холста
-            let rect = canvasWrapper.getBoundingClientRect();
-            let mouseX = (me.clientX - rect.left) / state.state.zoom;
-            let mouseY = (me.clientY - rect.top) / state.state.zoom;
-
-            if (wasRelative) {
-                // Строим временную кривую без этой точки
-                let tempWaypoints = curConn.waypoints.filter((_, i) => i !== idx);
-                let tempConn = { ...curConn, waypoints: tempWaypoints };
-                let pathData = buildConnectionPath(tempConn);
-                if (!pathData) return;
-
-                // Находим ближайшую точку на кривой
+        let wpIdx = 0;
+        for (let i = 0; i < allPts.length; i++) {
+            if (allPts[i] === null) {
+                let wp = waypoints[wpIdx];
+                let targetDist = wp.t * totalLen;
                 let tempPath = document.createElementNS(SVG_NS, "path");
-                tempPath.setAttribute("d", pathData.d);
-                let totalLen = pathData.totalLen;
-                let bestDist = Infinity, bestT = curWp.t;
-                let step = 1; // пиксель
-                for (let l = 0; l <= totalLen; l += step) {
-                    let pt = tempPath.getPointAtLength(l);
-                    let d = Math.hypot(mouseX - pt.x, mouseY - pt.y);
-                    if (d < bestDist) {
-                        bestDist = d;
-                        bestT = l / totalLen;
+                tempPath.setAttribute("d", curve.d);
+                let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+                allPts[i] = { x: pt.x, y: pt.y };
+                wpIdx++;
+            }
+        }
+
+        let ptsWithAbs = [startPt];
+        for (let i = 1; i < allPts.length; i++) {
+            ptsWithAbs.push(allPts[i]);
+        }
+
+        let bestDist = Infinity, bestT = 0, insertIdx = 0;
+        let cumDist = 0;
+        for (let j = 0; j < ptsWithAbs.length - 1; j++) {
+            let p1 = ptsWithAbs[j], p2 = ptsWithAbs[j + 1];
+            let segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            let dx = p2.x - p1.x, dy = p2.y - p1.y, len2 = dx*dx + dy*dy;
+            let t_seg = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((cx - p1.x)*dx + (cy - p1.y)*dy) / len2));
+            let projX = p1.x + t_seg * dx, projY = p1.y + t_seg * dy;
+            let dist = Math.hypot(cx - projX, cy - projY);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestT = totalLen > 0 ? (cumDist + t_seg * segLen) / totalLen : 0;
+                insertIdx = j;
+            }
+            cumDist += segLen;
+        }
+
+        let insIdx = Math.min(insertIdx, waypoints.length);
+        let newWp = { t: bestT, style: {} };
+        waypoints.splice(insIdx, 0, newWp);
+        conn.waypoints = waypoints;
+        state.state.connections = state.state.connections.map(c => c.id === t ? {...c, waypoints: [...waypoints]} : c);
+        state.selectWaypoint(t, insIdx);
+        events.emit("state:changed");
+
+        history.push({
+            type: "wp-add",
+            connId: t,
+            waypoint: newWp,
+            index: insIdx,
+            undo: () => {
+                let c = state.state.connections.find(c => c.id === t);
+                if (c && c.waypoints) c.waypoints.splice(insIdx, 1);
+                events.emit("state:changed");
+            },
+            redo: () => {
+                let c = state.state.connections.find(c => c.id === t);
+                if (c) {
+                    c.waypoints = c.waypoints || [];
+                    c.waypoints.splice(insIdx, 0, newWp);
+                }
+                events.emit("state:changed");
+            }
+        });
+        showToast("Добавлена промежуточная точка", "info");
+    },
+
+    setupWaypointInteraction: function() {
+        const svg = document.getElementById("guidesSvg");
+
+        svg.addEventListener("pointerdown", ev => {
+            let target = ev.target.closest(".waypoint-circle");
+            if (!target) return;
+            ev.stopPropagation(); ev.preventDefault();
+
+            let connId = target.dataset.connId,
+                idx = parseInt(target.dataset.index),
+                conn = state.state.connections.find(c => c.id === connId);
+            if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
+
+            state.selectWaypoint(connId, idx);
+            let wp = conn.waypoints[idx];
+            let wasRelative = wp.t !== undefined;
+            let startClientX = ev.clientX, startClientY = ev.clientY;
+
+            let origOffX = wasRelative ? 0 : wp.offsetX;
+            let origOffY = wasRelative ? 0 : wp.offsetY;
+            let origT = wasRelative ? wp.t : 0;
+
+            let active = true;
+
+            let moveHandler = (me) => {
+                if (!active) return;
+                let curConn = state.state.connections.find(c => c.id === connId);
+                if (!curConn || !curConn.waypoints) return;
+                let curWp = curConn.waypoints[idx];
+                if (!curWp) return;
+
+                let rect = canvasWrapper.getBoundingClientRect();
+                let mouseX = (me.clientX - rect.left) / state.state.zoom;
+                let mouseY = (me.clientY - rect.top) / state.state.zoom;
+
+                if (wasRelative) {
+                    let tempWaypoints = curConn.waypoints.filter((_, i) => i !== idx);
+                    let tempConn = { ...curConn, waypoints: tempWaypoints };
+                    let pathData = buildConnectionPath(tempConn);
+                    if (!pathData) return;
+
+                    let tempPath = document.createElementNS(SVG_NS, "path");
+                    tempPath.setAttribute("d", pathData.d);
+                    let totalLen = pathData.totalLen;
+                    let bestDist = Infinity, bestT = curWp.t;
+                    let step = 1;
+                    for (let l = 0; l <= totalLen; l += step) {
+                        let pt = tempPath.getPointAtLength(l);
+                        let d = Math.hypot(mouseX - pt.x, mouseY - pt.y);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            bestT = l / totalLen;
+                        }
+                    }
+                    curWp.t = bestT;
+                    delete curWp.offsetX;
+                    delete curWp.offsetY;
+                    delete curWp.blockId;
+                    delete curWp.snapToLine;
+                } else {
+                    let dx = (me.clientX - startClientX) / state.state.zoom;
+                    let dy = (me.clientY - startClientY) / state.state.zoom;
+                    curWp.offsetX = origOffX + dx;
+                    curWp.offsetY = origOffY + dy;
+                    delete curWp.t;
+                    delete curWp.snapToLine;
+                }
+
+                renderer.renderConnections();
+                if (state.state.selectedConnectionId === connId) {
+                    let c = state.state.connections.find(c => c.id === connId);
+                    if (c) N(c);
+                }
+                if (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === connId && state.state.selectedWaypoint.index === idx) {
+                    Y(curWp, connId, idx);
+                }
+            };
+
+            let upHandler = (me) => {
+                active = false;
+                document.removeEventListener("pointermove", moveHandler);
+                document.removeEventListener("pointerup", upHandler);
+
+                let curConn = state.state.connections.find(c => c.id === connId);
+                if (!curConn || !curConn.waypoints) return;
+                let finalWp = curConn.waypoints[idx];
+                if (!finalWp) return;
+
+                if (wasRelative) {
+                    if (finalWp.t !== origT) {
+                        history.push({
+                            type: "wp-move-relative",
+                            connId, idx,
+                            oldT: origT,
+                            newT: finalWp.t,
+                            undo: () => {
+                                let c = state.state.connections.find(c => c.id === connId);
+                                if (c && c.waypoints[idx]) c.waypoints[idx].t = origT;
+                                events.emit("state:changed");
+                            },
+                            redo: () => {
+                                let c = state.state.connections.find(c => c.id === connId);
+                                if (c && c.waypoints[idx]) c.waypoints[idx].t = finalWp.t;
+                                events.emit("state:changed");
+                            }
+                        });
+                    }
+                } else {
+                    if (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY) {
+                        let finalX = finalWp.offsetX, finalY = finalWp.offsetY;
+                        history.push({
+                            type: "wp-move",
+                            connId, idx,
+                            origOffX, origOffY,
+                            finalOffX: finalX, finalOffY: finalY,
+                            undo: () => {
+                                let c = state.state.connections.find(c => c.id === connId);
+                                if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = origOffX; c.waypoints[idx].offsetY = origOffY; }
+                                events.emit("state:changed");
+                            },
+                            redo: () => {
+                                let c = state.state.connections.find(c => c.id === connId);
+                                if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = finalX; c.waypoints[idx].offsetY = finalY; }
+                                events.emit("state:changed");
+                            }
+                        });
                     }
                 }
-                curWp.t = bestT;
-                // Удаляем возможные остатки абсолютных координат
-                delete curWp.offsetX;
-                delete curWp.offsetY;
-                delete curWp.blockId;
-                delete curWp.snapToLine;
-            } else {
-                // Абсолютная точка: перемещение по холсту
-                let dx = (me.clientX - startClientX) / state.state.zoom;
-                let dy = (me.clientY - startClientY) / state.state.zoom;
-                curWp.offsetX = origOffX + dx;
-                curWp.offsetY = origOffY + dy;
-                // Убедимся, что нет относительных свойств
-                delete curWp.t;
-                delete curWp.snapToLine;
-            }
+                events.emit("state:changed");
+            };
 
-            // Обновляем рендер и панель
-            renderer.renderConnections();
-            if (state.state.selectedConnectionId === connId) {
-                let c = state.state.connections.find(c => c.id === connId);
-                if (c) N(c);
-            }
-            if (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === connId && state.state.selectedWaypoint.index === idx) {
-                Y(curWp, connId, idx);
-            }
-        };
+            document.addEventListener("pointermove", moveHandler);
+            document.addEventListener("pointerup", upHandler);
+        });
 
-        let upHandler = (me) => {
-            active = false;
-            document.removeEventListener("pointermove", moveHandler);
-            document.removeEventListener("pointerup", upHandler);
+        svg.addEventListener("contextmenu", ev => {
+            let t = ev.target.closest(".waypoint-circle");
+            if (!t) return;
+            ev.preventDefault(); ev.stopPropagation();
+            let connId = t.dataset.connId,
+                idx = parseInt(t.dataset.index);
+            state.selectWaypoint(connId, idx);
+            let menu = document.getElementById("wpContextMenu");
+            menu.style.left = ev.clientX + "px";
+            menu.style.top = ev.clientY + "px";
+            menu.classList.add("open");
+            menu.querySelector('[data-action="delete-wp"]').style.display = "block";
+            menu.querySelector('[data-action="add-wp"]').style.display = "none";
+        });
 
-            let curConn = state.state.connections.find(c => c.id === connId);
-            if (!curConn || !curConn.waypoints) return;
-            let finalWp = curConn.waypoints[idx];
-            if (!finalWp) return;
-
-            if (wasRelative) {
-                // Запись изменения t
-                if (finalWp.t !== origT) {
-                    history.push({
-                        type: "wp-move-relative",
-                        connId, idx,
-                        oldT: origT,
-                        newT: finalWp.t,
-                        undo: () => {
-                            let c = state.state.connections.find(c => c.id === connId);
-                            if (c && c.waypoints[idx]) c.waypoints[idx].t = origT;
-                            events.emit("state:changed");
-                        },
-                        redo: () => {
-                            let c = state.state.connections.find(c => c.id === connId);
-                            if (c && c.waypoints[idx]) c.waypoints[idx].t = finalWp.t;
-                            events.emit("state:changed");
-                        }
-                    });
-                }
-            } else {
-                // Абсолютная точка: запись перемещения
-                if (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY) {
-                    let finalX = finalWp.offsetX, finalY = finalWp.offsetY;
-                    history.push({
-                        type: "wp-move",
-                        connId, idx,
-                        origOffX, origOffY,
-                        finalOffX: finalX, finalOffY: finalY,
-                        undo: () => {
-                            let c = state.state.connections.find(c => c.id === connId);
-                            if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = origOffX; c.waypoints[idx].offsetY = origOffY; }
-                            events.emit("state:changed");
-                        },
-                        redo: () => {
-                            let c = state.state.connections.find(c => c.id === connId);
-                            if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = finalX; c.waypoints[idx].offsetY = finalY; }
-                            events.emit("state:changed");
-                        }
-                    });
-                }
-            }
-            events.emit("state:changed");
-        };
-
-        document.addEventListener("pointermove", moveHandler);
-        document.addEventListener("pointerup", upHandler);
-    });
-
-    // Остальная часть (contextmenu) остается без изменений
-    svg.addEventListener("contextmenu", ev => {
-        let t = ev.target.closest(".waypoint-circle");
-        if (!t) return;
-        ev.preventDefault(); ev.stopPropagation();
-        let connId = t.dataset.connId,
-            idx = parseInt(t.dataset.index);
-        state.selectWaypoint(connId, idx);
-        let menu = document.getElementById("wpContextMenu");
-        menu.style.left = ev.clientX + "px";
-        menu.style.top = ev.clientY + "px";
-        menu.classList.add("open");
-        menu.querySelector('[data-action="delete-wp"]').style.display = "block";
-        menu.querySelector('[data-action="add-wp"]').style.display = "none";
-    });
-
-    document.getElementById("wpContextMenu").addEventListener("click", e => {
-        let item = e.target.closest(".ctx-item");
-        if (!item) return;
-        let action = item.dataset.action;
-        document.getElementById("wpContextMenu").classList.remove("open");
-        if (action === "delete-wp") {
-            renderer.deleteSelectedWaypoint() && showToast("Точка удалена", "info");
-        }
-    });
-
-    document.addEventListener("click", e => {
-        if (!e.target.closest("#wpContextMenu")) {
+        document.getElementById("wpContextMenu").addEventListener("click", e => {
+            let item = e.target.closest(".ctx-item");
+            if (!item) return;
+            let action = item.dataset.action;
             document.getElementById("wpContextMenu").classList.remove("open");
-        }
-    });
-},
+            if (action === "delete-wp") {
+                renderer.deleteSelectedWaypoint() && showToast("Точка удалена", "info");
+            }
+        });
+
+        document.addEventListener("click", e => {
+            if (!e.target.closest("#wpContextMenu")) {
+                document.getElementById("wpContextMenu").classList.remove("open");
+            }
+        });
+    },
+
     setupLabelDrag: function() {
         document.getElementById("guidesSvg").addEventListener("pointerdown", e => {
             let t = e.target;
@@ -1973,6 +2330,7 @@ if (!(state.state.selectedConnectionId === conn.id ||
             document.addEventListener("pointermove", d), document.addEventListener("pointerup", r)
         })
     },
+
     deleteSelectedConnection: function() {
         let e = state.state.selectedConnectionId;
         if (!e) return;
@@ -1985,6 +2343,7 @@ if (!(state.state.selectedConnectionId === conn.id ||
             redo: () => state.removeConnection(e)
         }), showToast("Связь удалена", "info")
     },
+
     deleteSelectedWaypoint: function() {
         let e = state.state.selectedWaypoint;
         if (!e) return !1;
@@ -2007,6 +2366,39 @@ if (!(state.state.selectedConnectionId === conn.id ||
             }
         }), showToast("Точка удалена", "info"), !0
     },
+
+    // Этот метод нигде не используется, можно удалить, но оставлю для совместимости
+    pointToSegmentDist: function(e, t, n) {
+        let o = n.x - t.x,
+            i = n.y - t.y;
+        if (0 === o && 0 === i) return Math.hypot(e.x - t.x, e.y - t.y);
+        let s = ((e.x - t.x) * o + (e.y - t.y) * i) / (o * o + i * i);
+        s = Math.max(0, Math.min(1, s));
+        let l = t.x + s * o,
+            a = t.y + s * i;
+        return Math.hypot(e.x - l, e.y - a)
+    },
+
+    // ========== МЕТОДЫ ДЛЯ ПОРТОВ ==========
+    showPort: (e, t, n, o, i) => {
+        e.style.left = t + "px", e.style.top = n + "px", e.classList.add("active"), e.dataset.blockId = o, e.dataset.itemIndex = null != i ? i : ""
+    },
+    hidePort: e => {
+        e.classList.remove("active", "target-mode")
+    },
+
+    // ========== НОВЫЙ МЕТОД ДЛЯ СБРОСА РЕЖИМА СВЯЗЕЙ ==========
+    resetConnectionMode: function() {
+        if (this._connModeState) {
+            this._connModeState.c = null;
+            this._connModeState.d = -999;
+            this._connModeState.r = -999;
+        }
+        this.hidePort(document.getElementById("sourcePort"));
+        this.hidePort(document.getElementById("targetPort"));
+    },
+
+    // ========== setupConnections с сохранением состояния ==========
     setupConnections: function() {
         let e = !1,
             t = null,
@@ -2025,6 +2417,10 @@ if (!(state.state.selectedConnectionId === conn.id ||
         let c = null,
             d = -999,
             r = -999;
+
+        // Сохраняем состояние для сброса
+        this._connModeState = { c, d, r };
+
         const h = e => {
             let t = document.elementsFromPoint(e.clientX, e.clientY);
             for (let e of t) {
@@ -2044,11 +2440,10 @@ if (!(state.state.selectedConnectionId === conn.id ||
             }
             return null
         };
-        renderer.showPort = (e, t, n, o, i) => {
-            e.style.left = t + "px", e.style.top = n + "px", e.classList.add("active"), e.dataset.blockId = o, e.dataset.itemIndex = null != i ? i : ""
-        }, renderer.hidePort = e => {
-            e.classList.remove("active", "target-mode")
-        }, canvasWrapper.addEventListener("pointermove", t => {
+        renderer.showPort = this.showPort;
+        renderer.hidePort = this.hidePort;
+
+        canvasWrapper.addEventListener("pointermove", t => {
             if (e) return;
             if (!state.state.connectionMode) return void(c && (c = null, renderer.hidePort(i), d = -999, r = -999));
             let n = a(t),
@@ -2072,9 +2467,13 @@ if (!(state.state.selectedConnectionId === conn.id ||
                     (e || Math.abs(s.x - d) > 1 || Math.abs(s.y - r) > 1) && (i.style.left = s.x + "px", i.style.top = s.y + "px", d = s.x, r = s.y), i.classList.add("active"), i.dataset.blockId = o.blockId, i.dataset.itemIndex = null !== o.itemIndex && void 0 !== o.itemIndex ? o.itemIndex : ""
                 }
             } else c && (c = null, renderer.hidePort(i), d = -999, r = -999)
-        }), canvasWrapper.addEventListener("pointerleave", () => {
+        });
+
+        canvasWrapper.addEventListener("pointerleave", () => {
             e || (c = null, renderer.hidePort(i), d = -999, r = -999)
-        }), i.addEventListener("pointerdown", c => {
+        });
+
+        i.addEventListener("pointerdown", c => {
             c.stopPropagation(), c.preventDefault(), e = !0;
             let d = i.dataset.blockId,
                 r = i.dataset.itemIndex;
@@ -2085,7 +2484,9 @@ if (!(state.state.selectedConnectionId === conn.id ||
             let h = getBlockRectById(t.blockId, t.itemIndex),
                 m = a(c);
             n = closestPointOnRect(h, m.x, m.y), o = null, i.style.left = n.x + "px", i.style.top = n.y + "px", i.style.pointerEvents = "none", s.style.pointerEvents = "none", l.setAttribute("d", ""), l.style.opacity = "1", canvasWrapper.setPointerCapture(c.pointerId)
-        }), document.addEventListener("pointermove", i => {
+        });
+
+        document.addEventListener("pointermove", i => {
             if (!e) return;
             let c = a(i),
                 d = h(i);
@@ -2099,7 +2500,9 @@ if (!(state.state.selectedConnectionId === conn.id ||
                 m = c.y - n.y,
                 u = Math.abs(r) > Math.abs(m) ? r >= 0 ? "right" : "left" : m >= 0 ? "bottom" : "top";
             l.setAttribute("d", buildCubicCurve(n, n.side, c, u))
-        }), document.addEventListener("pointerup", a => {
+        });
+
+        document.addEventListener("pointerup", a => {
             if (!e) return;
             e = !1;
             let c = s.classList.contains("active"),
@@ -2141,7 +2544,9 @@ if (!(state.state.selectedConnectionId === conn.id ||
                 }), showToast("Связь создана", "success")
             }
             t = null, n = null, o = null
-        }), document.getElementById("guidesSvg").addEventListener("contextmenu", e => {
+        });
+
+        document.getElementById("guidesSvg").addEventListener("contextmenu", e => {
             let t = e.target.closest(".connection-hit");
             if (!t) return;
             e.preventDefault(), e.stopPropagation();
@@ -2160,7 +2565,7 @@ if (!(state.state.selectedConnectionId === conn.id ||
                 }
                 o.style.left = e.clientX + "px", o.style.top = e.clientY + "px", o.classList.add("open")
             }
-        })
+        });
     }
 };
 
