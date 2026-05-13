@@ -319,8 +319,8 @@ font-size: 0.9em;
 #alignMenu {
     display: flex;
     flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px;
+    gap: 2px;
+    padding: 2px 10px;
 }
 #alignMenu .ctx-item {
     width: auto;
@@ -2007,16 +2007,6 @@ if (!(state.state.selectedConnectionId === conn.id ||
             }
         }), showToast("Точка удалена", "info"), !0
     },
-    pointToSegmentDist: function(e, t, n) {
-        let o = n.x - t.x,
-            i = n.y - t.y;
-        if (0 === o && 0 === i) return Math.hypot(e.x - t.x, e.y - t.y);
-        let s = ((e.x - t.x) * o + (e.y - t.y) * i) / (o * o + i * i);
-        s = Math.max(0, Math.min(1, s));
-        let l = t.x + s * o,
-            a = t.y + s * i;
-        return Math.hypot(e.x - l, e.y - a)
-    },
     setupConnections: function() {
         let e = !1,
             t = null,
@@ -2455,13 +2445,27 @@ function openEditModal(e) {
     btnAddItem.innerHTML = renderIconHTML("plus") + " Добавить элемент", renderColorGrid(), renderIconGrid(), renderItemList(), updateConnectionList(), editModal.classList.add("open"));
 }
 
+function getBlocksBounds(blocks) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    blocks.forEach(b => {
+        minX = Math.min(minX, b.x);
+        maxX = Math.max(maxX, b.x + b.width);
+        minY = Math.min(minY, b.y);
+        maxY = Math.max(maxY, b.y + b.height);
+    });
+    return {
+        minX, maxX, minY, maxY,
+        centerX: (minX + maxX) / 2,
+        centerY: (minY + maxY) / 2
+    };
+}
+
 function alignBlocks(type, mainBlockId = null) {
     const ids = state.getSelectedIds();
     if (ids.length < 2) return;
     let blocks = ids.map(id => state.getBlock(id)).filter(b => b);
     if (blocks.length < 2) return;
 
-    // Если передан mainBlockId, используем его, иначе пытаемся взять из menu
     let mainBlock = null;
     if (mainBlockId) {
         mainBlock = state.getBlock(mainBlockId);
@@ -2473,43 +2477,39 @@ function alignBlocks(type, mainBlockId = null) {
     }
 
     const oldPositions = blocks.map(b => ({ id: b.id, x: b.x, y: b.y }));
+    const bounds = getBlocksBounds(blocks);
+    const { minX, maxX, minY, maxY, centerX, centerY } = bounds;
 
     switch (type) {
         case 'align-left':
             if (mainBlock) blocks.forEach(b => b.x = mainBlock.x);
-            else { const minX = Math.min(...blocks.map(b => b.x)); blocks.forEach(b => b.x = minX); }
+            else blocks.forEach(b => b.x = minX);
             break;
         case 'align-right':
             if (mainBlock) blocks.forEach(b => b.x = mainBlock.x + mainBlock.width - b.width);
-            else { const maxX = Math.max(...blocks.map(b => b.x + b.width)); blocks.forEach(b => b.x = maxX - b.width); }
+            else blocks.forEach(b => b.x = maxX - b.width);
             break;
         case 'align-top':
             if (mainBlock) blocks.forEach(b => b.y = mainBlock.y);
-            else { const minY = Math.min(...blocks.map(b => b.y)); blocks.forEach(b => b.y = minY); }
+            else blocks.forEach(b => b.y = minY);
             break;
         case 'align-bottom':
             if (mainBlock) blocks.forEach(b => b.y = mainBlock.y + mainBlock.height - b.height);
-            else { const maxY = Math.max(...blocks.map(b => b.y + b.height)); blocks.forEach(b => b.y = maxY - b.height); }
+            else blocks.forEach(b => b.y = maxY - b.height);
             break;
         case 'align-center-h':
             if (mainBlock) {
-                const centerX = mainBlock.x + mainBlock.width / 2;
-                blocks.forEach(b => b.x = centerX - b.width / 2);
+                const centerXMain = mainBlock.x + mainBlock.width / 2;
+                blocks.forEach(b => b.x = centerXMain - b.width / 2);
             } else {
-                const minX = Math.min(...blocks.map(b => b.x));
-                const maxX = Math.max(...blocks.map(b => b.x + b.width));
-                const centerX = (minX + maxX) / 2;
                 blocks.forEach(b => b.x = centerX - b.width / 2);
             }
             break;
         case 'align-center-v':
             if (mainBlock) {
-                const centerY = mainBlock.y + mainBlock.height / 2;
-                blocks.forEach(b => b.y = centerY - b.height / 2);
+                const centerYMain = mainBlock.y + mainBlock.height / 2;
+                blocks.forEach(b => b.y = centerYMain - b.height / 2);
             } else {
-                const minY = Math.min(...blocks.map(b => b.y));
-                const maxY = Math.max(...blocks.map(b => b.y + b.height));
-                const centerY = (minY + maxY) / 2;
                 blocks.forEach(b => b.y = centerY - b.height / 2);
             }
             break;
@@ -3415,10 +3415,7 @@ if (wpShapeSelector) {
         btn.classList.add("active");
         T("shape", btn.dataset.value);
     });
-} else {
-    console.warn("wpShapeSelector not found in DOM");
-}
-
+} 
 document.getElementById("wpSizeSelector").addEventListener("click", e => {
     const t = e.target.closest(".size-option");
     t && T("size", t.dataset.wpSize)
