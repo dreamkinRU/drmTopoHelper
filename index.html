@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>dreamkin topology helper v.0.996</title>
+<title>dreamkin topology helper v.0.997</title>
 <style>
 :root {
 --bg:#2a2b2e;--surface:#161618;--card:#1e1e22;--border:#2a2a30;
@@ -348,7 +348,7 @@ font-size: 0.9em;
 <div class="toolbar-brand">
 <div id="toolbar-logo-badge"><span class="drm-icon-slot" data-icon="cubes"></span></div>
 <span id="toolbar-logo-text">drmTopoHelper</span>
-<span id="toolbar-version">v.0.996</span>
+<span id="toolbar-version">v.0.997</span>
 </div>
 <div class="divider"></div>
 
@@ -1494,14 +1494,6 @@ function cloneConnection(e) {
         labelOffsetX: e.labelOffsetX || 0,
         labelOffsetY: e.labelOffsetY || 0
     };
-}
-
-function closeAllPanels() {
-    document.getElementById("connectionPanel").classList.remove("open");
-    document.getElementById("waypointPanel").classList.remove("open");
-    state.state.selectedConnectionId = null;
-    state.state.selectedWaypoint = null;
-    events.emit("state:changed");
 }
 
 function replaceBlock(e) {
@@ -2864,21 +2856,67 @@ function alignBlocks(type, mainBlockId = null) {
 }
 
 function deleteSelected() {
-    let e = state.getSelectedIds();
-    if (!e.length) return;
-    let t = state.state.blocks.filter(t => e.includes(t.id)).map(cloneBlock),
-        n = state.state.connections.filter(t => e.some(e => t.from.blockId === e || t.to.blockId === e)).map(cloneConnection);
-    e.forEach(e => {
-        let t = document.getElementById(e);
-        t && (t.classList.add("block-deleting"), setTimeout(() => t.remove(), 200)), state.removeConnectionsForBlock(e)
-    }),
-    state.state.blocks = state.state.blocks.filter(t => !e.includes(t.id)), state.clearSelection(), 
-	history.push(HistoryActions.delete(t, n));
-    let o = document.getElementById("toastContainer"),
-        i = document.createElement("div");
-    i.className = "toast toast-error", i.innerHTML = renderIconHTML("trash") + " Удалено: " + t.length + ' <button style="margin-left:12px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600">Отменить</button>', i.querySelector("button").onclick = () => {
-        history.undo(), i.remove()
-    }, o.appendChild(i), setTimeout(() => i.remove(), 5e3)
+    // 1. Удаление выделенной связи
+    if (state.state.selectedConnectionId !== null) {
+        const connId = state.state.selectedConnectionId;
+        const conn = state.state.connections.find(c => c.id === connId);
+        if (conn) {
+            const backup = cloneConnection(conn);
+            state.removeConnection(connId);
+            history.push(HistoryActions.connectionRemove(connId, backup));
+            showToast("Связь удалена", "info");
+        }
+        state.selectConnection(null);
+        return;
+    }
+
+    // 2. Удаление выделенной точки (waypoint)
+    if (state.state.selectedWaypoint !== null) {
+        const wp = state.state.selectedWaypoint;
+        const conn = state.state.connections.find(c => c.id === wp.connId);
+        if (conn && conn.waypoints && conn.waypoints[wp.index]) {
+            const waypoint = conn.waypoints[wp.index];
+            conn.waypoints.splice(wp.index, 1);
+            state.selectWaypoint(null, null);
+            history.push(HistoryActions.waypointRemove(wp.connId, waypoint, wp.index));
+            showToast("Точка удалена", "info");
+            events.emit("state:changed");
+            renderer.renderConnections();
+        }
+        return;
+    }
+
+    // 3. Удаление блоков (если выделены блоки)
+    let selectedIds = state.getSelectedIds();
+    if (!selectedIds.length) return;
+
+    let blocksCopy = state.state.blocks.filter(b => selectedIds.includes(b.id)).map(cloneBlock);
+    let connectionsCopy = state.state.connections.filter(c => selectedIds.some(id => c.from.blockId === id || c.to.blockId === id)).map(cloneConnection);
+
+    selectedIds.forEach(id => {
+        let el = document.getElementById(id);
+        if (el) {
+            el.classList.add("block-deleting");
+            setTimeout(() => el.remove(), 200);
+        }
+        state.removeConnectionsForBlock(id);
+    });
+
+    state.state.blocks = state.state.blocks.filter(b => !selectedIds.includes(b.id));
+    state.clearSelection();
+    events.emit("state:changed");
+
+    history.push(HistoryActions.delete(blocksCopy, connectionsCopy));
+
+    let toast = document.createElement("div");
+    toast.className = "toast toast-error";
+    toast.innerHTML = renderIconHTML("trash") + " Удалено: " + blocksCopy.length + ' <button style="margin-left:12px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600">Отменить</button>';
+    toast.querySelector("button").onclick = () => {
+        history.undo();
+        toast.remove();
+    };
+    document.getElementById("toastContainer").appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
 }
 
 function duplicateSelected() {
@@ -3041,7 +3079,7 @@ const STORAGE_KEY = "drmTopoHelper";
 function autoSave() {
     try {
         let e = {
-            version: "0.996",
+            version: "0.997",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -3083,7 +3121,7 @@ document.getElementById("btnEdit").addEventListener("click", () => {
 }), document.getElementById("btnDelete").addEventListener("click", deleteSelected), document.getElementById("btnDuplicate").addEventListener("click", duplicateSelected), document.getElementById("btnSave").addEventListener("click", () => {
     if (!state.state.blocks.length) return void showToast("Нечего сохранять", "error");
     let e = {
-            version: "0.996",
+            version: "0.997",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -3727,6 +3765,7 @@ document.getElementById("btnDeleteWaypoint").addEventListener("click", () => {
     if (renderer.deleteSelectedWaypoint()) {
         document.getElementById("waypointPanel").classList.remove("open");
         showToast("Точка удалена", "info");
+		return true;
     }
 });
 document.getElementById("wpToggleMode").addEventListener("click", () => {
@@ -3734,10 +3773,17 @@ document.getElementById("wpToggleMode").addEventListener("click", () => {
     const connId = panel.dataset.connId;
     const idx = parseInt(panel.dataset.wpIndex);
     if (isNaN(idx) || !connId) return;
+
     let conn = state.state.connections.find(c => c.id === connId);
     if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
     let wp = conn.waypoints[idx];
+
+    // Сохраняем копию всей точки (старое состояние)
+    const oldWp = JSON.parse(JSON.stringify(wp));
+
+    // Выполняем переключение (как и раньше)
     if (wp.t !== undefined) {
+        // относительная → абсолютная
         let pathData = buildConnectionPath(conn);
         if (!pathData) return;
         let targetDist = wp.t * pathData.totalLen;
@@ -3748,11 +3794,9 @@ document.getElementById("wpToggleMode").addEventListener("click", () => {
         wp.offsetY = pt.y;
         delete wp.t;
         delete wp.snapToLine;
-        events.emit("state:changed");
-        Y(wp, connId, idx);
-        renderer.renderConnections();
-        showToast("Точка стала абсолютной", "info");
+        delete wp.blockId;
     } else {
+        // абсолютная → относительная
         let pathData = buildConnectionPath(conn);
         if (!pathData) return;
         let absPos = { x: wp.offsetX, y: wp.offsetY };
@@ -3774,11 +3818,39 @@ document.getElementById("wpToggleMode").addEventListener("click", () => {
         delete wp.offsetY;
         delete wp.blockId;
         delete wp.snapToLine;
-        events.emit("state:changed");
-        Y(wp, connId, idx);
-        renderer.renderConnections();
-        showToast("Точка стала относительной", "info");
     }
+
+    // Сохраняем новое состояние (копию)
+    const newWp = JSON.parse(JSON.stringify(wp));
+
+    // Добавляем в историю
+    history.push({
+        type: "wp-toggle-mode",
+        undo: () => {
+            const conn = state.state.connections.find(c => c.id === connId);
+            if (conn && conn.waypoints && conn.waypoints[idx]) {
+                // Восстанавливаем старое состояние
+                Object.assign(conn.waypoints[idx], oldWp);
+                events.emit("state:changed");
+                renderer.renderConnections();
+                Y(conn.waypoints[idx], connId, idx);
+            }
+        },
+        redo: () => {
+            const conn = state.state.connections.find(c => c.id === connId);
+            if (conn && conn.waypoints && conn.waypoints[idx]) {
+                Object.assign(conn.waypoints[idx], newWp);
+                events.emit("state:changed");
+                renderer.renderConnections();
+                Y(conn.waypoints[idx], connId, idx);
+            }
+        }
+    });
+
+    events.emit("state:changed");
+    renderer.renderConnections();
+    Y(wp, connId, idx);
+    showToast(wp.t !== undefined ? "Точка стала относительной" : "Точка стала абсолютной", "info");
 });
 document.querySelectorAll("#waypointPanel .section-header").forEach(e => {
     e.addEventListener("click", () => e.parentElement.classList.toggle("collapsed"))
