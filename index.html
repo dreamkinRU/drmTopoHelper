@@ -2221,7 +2221,86 @@ const renderer = {
         return allPts;
     },
 
-    _findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen) {
+	    // Начало перетаскивания waypoint
+    _startWaypointDrag(ev, connId, idx) {
+        const conn = state.state.connections.find(c => c.id === connId);
+        if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
+        const wp = conn.waypoints[idx];
+        const wasRelative = wp.t !== undefined;
+        const startClientX = ev.clientX, startClientY = ev.clientY;
+        const origOffX = wasRelative ? 0 : wp.offsetX;
+        const origOffY = wasRelative ? 0 : wp.offsetY;
+        const origT = wasRelative ? wp.t : 0;
+        let active = true;
+
+        const moveHandler = (me) => {
+            if (!active) return;
+            const curConn = state.state.connections.find(c => c.id === connId);
+            if (!curConn || !curConn.waypoints || !curConn.waypoints[idx]) return;
+            const curWp = curConn.waypoints[idx];
+            const rect = canvasWrapper.getBoundingClientRect();
+            const mouseX = (me.clientX - rect.left) / state.state.zoom;
+            const mouseY = (me.clientY - rect.top) / state.state.zoom;
+
+            if (wasRelative) {
+                // Относительная точка: пересчитываем t
+                const tempWaypoints = curConn.waypoints.filter((_, i) => i !== idx);
+                const tempConn = { ...curConn, waypoints: tempWaypoints };
+                const pathData = buildConnectionPath(tempConn);
+                if (!pathData) return;
+                const tempPath = document.createElementNS(SVG_NS, "path");
+                tempPath.setAttribute("d", pathData.d);
+                const totalLen = pathData.totalLen;
+                let bestDist = Infinity, bestT = curWp.t;
+                for (let l = 0; l <= totalLen; l += 1) {
+                    const pt = tempPath.getPointAtLength(l);
+                    const d = Math.hypot(mouseX - pt.x, mouseY - pt.y);
+                    if (d < bestDist) { bestDist = d; bestT = l / totalLen; }
+                }
+                curWp.t = bestT;
+                delete curWp.offsetX; delete curWp.offsetY; delete curWp.blockId; delete curWp.snapToLine;
+            } else {
+                // Абсолютная точка: сдвиг
+                const dx = (me.clientX - startClientX) / state.state.zoom;
+                const dy = (me.clientY - startClientY) / state.state.zoom;
+                curWp.offsetX = origOffX + dx;
+                curWp.offsetY = origOffY + dy;
+                delete curWp.t; delete curWp.snapToLine;
+            }
+            renderer.renderConnections();
+            if (state.state.selectedConnectionId === connId) {
+                const c = state.state.connections.find(c => c.id === connId);
+                if (c) N(c);
+            }
+            if (state.state.selectedWaypoint?.connId === connId && state.state.selectedWaypoint?.index === idx) {
+                Y(curWp, connId, idx);
+            }
+        };
+
+        const upHandler = () => {
+            active = false;
+            document.removeEventListener("pointermove", moveHandler);
+            document.removeEventListener("pointerup", upHandler);
+            const curConn = state.state.connections.find(c => c.id === connId);
+            if (!curConn || !curConn.waypoints || !curConn.waypoints[idx]) return;
+            const finalWp = curConn.waypoints[idx];
+            if (wasRelative) {
+                if (finalWp.t !== origT) {
+                    history.push(HistoryActions.waypointMoveRelative(connId, idx, origT, finalWp.t));
+                }
+            } else {
+                if (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY) {
+                    history.push(HistoryActions.waypointMove(connId, idx, origOffX, origOffY, finalWp.offsetX, finalWp.offsetY));
+                }
+            }
+            events.emit("state:changed");
+        };
+
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
+    },
+    
+	_findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen) {
         let bestDist = Infinity, bestT = 0, insertIdx = 0;
         let cumDist = 0;
         for (let j = 0; j < allAbsPoints.length - 1; j++) {
@@ -2392,135 +2471,48 @@ const renderer = {
         showToast("Добавлена промежуточная точка", "info");
     },
 
-    setupWaypointInteraction: function() {
+        setupWaypointInteraction: function() {
         const svg = document.getElementById("guidesSvg");
 
+        // Обработка начала перетаскивания waypoint
         svg.addEventListener("pointerdown", ev => {
-            let target = ev.target.closest(".waypoint-circle");
+            const target = ev.target.closest(".waypoint-circle");
             if (!target) return;
-            ev.stopPropagation(); ev.preventDefault();
-
-            let connId = target.dataset.connId,
-                idx = parseInt(target.dataset.index),
-                conn = state.state.connections.find(c => c.id === connId);
-            if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
-
+            ev.stopPropagation();
+            ev.preventDefault();
+            const connId = target.dataset.connId;
+            const idx = parseInt(target.dataset.index);
             state.selectWaypoint(connId, idx);
-            let wp = conn.waypoints[idx];
-            let wasRelative = wp.t !== undefined;
-            let startClientX = ev.clientX, startClientY = ev.clientY;
-
-            let origOffX = wasRelative ? 0 : wp.offsetX;
-            let origOffY = wasRelative ? 0 : wp.offsetY;
-            let origT = wasRelative ? wp.t : 0;
-
-            let active = true;
-
-            let moveHandler = (me) => {
-                if (!active) return;
-                let curConn = state.state.connections.find(c => c.id === connId);
-                if (!curConn || !curConn.waypoints) return;
-                let curWp = curConn.waypoints[idx];
-                if (!curWp) return;
-
-                let rect = canvasWrapper.getBoundingClientRect();
-                let mouseX = (me.clientX - rect.left) / state.state.zoom;
-                let mouseY = (me.clientY - rect.top) / state.state.zoom;
-
-                if (wasRelative) {
-                    let tempWaypoints = curConn.waypoints.filter((_, i) => i !== idx);
-                    let tempConn = { ...curConn, waypoints: tempWaypoints };
-                    let pathData = buildConnectionPath(tempConn);
-                    if (!pathData) return;
-
-                    let tempPath = document.createElementNS(SVG_NS, "path");
-                    tempPath.setAttribute("d", pathData.d);
-                    let totalLen = pathData.totalLen;
-                    let bestDist = Infinity, bestT = curWp.t;
-                    let step = 1;
-                    for (let l = 0; l <= totalLen; l += step) {
-                        let pt = tempPath.getPointAtLength(l);
-                        let d = Math.hypot(mouseX - pt.x, mouseY - pt.y);
-                        if (d < bestDist) {
-                            bestDist = d;
-                            bestT = l / totalLen;
-                        }
-                    }
-                    curWp.t = bestT;
-                    delete curWp.offsetX;
-                    delete curWp.offsetY;
-                    delete curWp.blockId;
-                    delete curWp.snapToLine;
-                } else {
-                    let dx = (me.clientX - startClientX) / state.state.zoom;
-                    let dy = (me.clientY - startClientY) / state.state.zoom;
-                    curWp.offsetX = origOffX + dx;
-                    curWp.offsetY = origOffY + dy;
-                    delete curWp.t;
-                    delete curWp.snapToLine;
-                }
-
-                renderer.renderConnections();
-                if (state.state.selectedConnectionId === connId) {
-                    let c = state.state.connections.find(c => c.id === connId);
-                    if (c) N(c);
-                }
-                if (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === connId && state.state.selectedWaypoint.index === idx) {
-                    Y(curWp, connId, idx);
-                }
-            };
-
-            let upHandler = (me) => {
-                active = false;
-                document.removeEventListener("pointermove", moveHandler);
-                document.removeEventListener("pointerup", upHandler);
-
-                let curConn = state.state.connections.find(c => c.id === connId);
-                if (!curConn || !curConn.waypoints) return;
-                let finalWp = curConn.waypoints[idx];
-                if (!finalWp) return;
-
-                if (wasRelative) {
-                    if (finalWp.t !== origT) {
-                        history.push(HistoryActions.waypointMoveRelative(connId, idx, origT, finalWp.t));
-                    }
-                } else {
-                    if (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY) {
-                        let finalX = finalWp.offsetX, finalY = finalWp.offsetY;
-                        history.push(HistoryActions.waypointMove(connId, idx, origOffX, origOffY, finalX, finalY));
-                    }
-                }
-                events.emit("state:changed");
-            };
-
-            document.addEventListener("pointermove", moveHandler);
-            document.addEventListener("pointerup", upHandler);
+            this._startWaypointDrag(ev, connId, idx);
         });
 
+        // Контекстное меню для waypoint
         svg.addEventListener("contextmenu", ev => {
-            let circle = ev.target.closest(".waypoint-circle");
-    if (!circle) return;
-    ev.preventDefault();
-    let connId = circle.dataset.connId;
-    let idx = parseInt(circle.dataset.index);
-    state.selectWaypoint(connId, idx);
-    let menu = document.getElementById("wpContextMenu");
-	adjustMenuPosition(menu, ev.clientX, ev.clientY);
-    menu.classList.add("open");
+            const circle = ev.target.closest(".waypoint-circle");
+            if (!circle) return;
+            ev.preventDefault();
+            const connId = circle.dataset.connId;
+            const idx = parseInt(circle.dataset.index);
+            state.selectWaypoint(connId, idx);
+            const menu = document.getElementById("wpContextMenu");
+            adjustMenuPosition(menu, ev.clientX, ev.clientY);
+            menu.classList.add("open");
             menu.querySelector('[data-action="delete-wp"]').style.display = "block";
             menu.querySelector('[data-action="add-wp"]').style.display = "none";
         });
 
+        // Обработчик кликов по меню waypoint
         document.getElementById("wpContextMenu").addEventListener("click", e => {
-            let item = e.target.closest(".ctx-item");
+            const item = e.target.closest(".ctx-item");
             if (!item) return;
-            let action = item.dataset.action;
+            const action = item.dataset.action;
             document.getElementById("wpContextMenu").classList.remove("open");
             if (action === "delete-wp") {
-                renderer.deleteSelectedWaypoint() && showToast("Точка удалена", "info");
+                this.deleteSelectedWaypoint() && showToast("Точка удалена", "info");
             }
         });
 
+        // Закрытие меню при клике вне
         document.addEventListener("click", e => {
             if (!e.target.closest("#wpContextMenu")) {
                 document.getElementById("wpContextMenu").classList.remove("open");
