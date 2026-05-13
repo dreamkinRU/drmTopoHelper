@@ -2331,6 +2331,21 @@ const renderer = {
         document.addEventListener("pointerup", upHandler);
     },
 
+	    _onConnectionDoubleClick(e) {
+        const hit = e.target.closest(".connection-hit");
+        if (!hit) return;
+        e.preventDefault();
+        this.addWaypointFromEvent(e, hit.dataset.connId);
+    },
+
+    _onConnectionAltClick(e) {
+        if (!e.altKey) return;
+        const hit = e.target.closest(".connection-hit");
+        if (!hit) return;
+        e.preventDefault();
+        this.addWaypointFromEvent(e, hit.dataset.connId);
+    },
+
 	_findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen) {
         let bestDist = Infinity, bestT = 0, insertIdx = 0;
         let cumDist = 0;
@@ -2442,16 +2457,10 @@ const renderer = {
         });
     },
 
-    setupConnectionEdit: function() {
-        const e = document.getElementById("guidesSvg");
-        e.addEventListener("dblclick", e => {
-            let t = e.target.closest(".connection-hit");
-            t && (e.preventDefault(), renderer.addWaypointFromEvent(e, t.dataset.connId))
-        }), e.addEventListener("pointerdown", e => {
-            if (!e.altKey) return;
-            let t = e.target.closest(".connection-hit");
-            t && (e.preventDefault(), renderer.addWaypointFromEvent(e, t.dataset.connId))
-        })
+        setupConnectionEdit: function() {
+        const svg = document.getElementById("guidesSvg");
+        svg.addEventListener("dblclick", this._onConnectionDoubleClick.bind(this));
+        svg.addEventListener("pointerdown", this._onConnectionAltClick.bind(this));
     },
 
         addWaypointFromEvent: function(e, connId) {
