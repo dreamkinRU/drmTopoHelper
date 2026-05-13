@@ -1586,29 +1586,40 @@ const renderer = {
     },
 
     updateGeneralUI() {
-        let e = state.state.blocks.length;
-        document.getElementById("blockCount").textContent = "Блоков: " + e, document.getElementById("emptyHint").style.display = e ? "none" : "block";
-        let t = state.state.selectedIds.size > 0,
-            n = null !== state.state.selectedConnectionId,
-            o = null !== state.state.selectedWaypoint;
-        let i;
-        document.getElementById("btnEdit").disabled = !t, document.getElementById("btnDelete").disabled = !(t || n || o), document.getElementById("btnDuplicate").disabled = !t, i = () => {
-            this.updateCanvasSize(), zoomController && zoomController.updateMinimap()
-        }, rafId || (rafId = requestAnimationFrame(() => {
-            rafId = null, i()
-        })), this.renderConnections();
-        const s = document.getElementById("connectionPanel"),
-            l = document.getElementById("waypointPanel");
-        if (n) {
-            let e = state.state.connections.find(e => e.id === state.state.selectedConnectionId);
-            e ? (N(e), s.classList.add("open")) : s.classList.remove("open"), l.classList.remove("open")
-        } else if (o) {
-            let e = state.state.selectedWaypoint,
-                t = state.state.connections.find(t => t.id === e.connId),
-                n = t ? t.waypoints[e.index] : null;
-            n ? (Y(n, e.connId, e.index), l.classList.add("open")) : l.classList.remove("open"), s.classList.remove("open")
-        } else s.classList.remove("open"), l.classList.remove("open")
-    },
+		let e = state.state.blocks.length;
+		document.getElementById("blockCount").textContent = "Блоков: " + e;
+		document.getElementById("emptyHint").style.display = e ? "none" : "block";
+		let t = state.state.selectedIds.size > 0,
+			n = null !== state.state.selectedConnectionId,
+			o = null !== state.state.selectedWaypoint;
+		document.getElementById("btnEdit").disabled = !t;
+		document.getElementById("btnDelete").disabled = !(t || n || o);
+		document.getElementById("btnDuplicate").disabled = !t;
+		if (!rafId) {
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				this.updateCanvasSize();
+				zoomController && zoomController.updateMinimap();
+			});
+		}
+		this.renderConnections();
+		const s = document.getElementById("connectionPanel");
+		const l = document.getElementById("waypointPanel");
+		if (n) {
+			let conn = state.state.connections.find(c => c.id === state.state.selectedConnectionId);
+			conn ? (N(conn), s.classList.add("open")) : s.classList.remove("open");
+			l.classList.remove("open");
+		} else if (o) {
+			let wp = state.state.selectedWaypoint;
+			let conn = state.state.connections.find(c => c.id === wp.connId);
+			let waypoint = conn ? conn.waypoints[wp.index] : null;
+			waypoint ? (Y(waypoint, wp.connId, wp.index), l.classList.add("open")) : l.classList.remove("open");
+			s.classList.remove("open");
+		} else {
+			s.classList.remove("open");
+			l.classList.remove("open");
+		}
+	},
 
     applyZoom(e) {
         canvasWrapper.style.transform = "scale(" + e + ")", document.getElementById("zoomLabel").textContent = Math.round(100 * e) + "%", this.updateCanvasSize(), zoomController && zoomController.updateMinimap(), this.renderConnections()
@@ -1883,9 +1894,137 @@ if (!isBlockLocked) this.initDrag(e, n, i);
     },
 
     // ========== ОРИГИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ renderConnections (без рефакторинга) ==========
+        // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ОТРИСОВКИ СВЯЗЕЙ ==========
+    _renderConnectionPath: function(group, conn, dString) {
+        const strokeColor = conn.stroke || "#e8a030";
+        const strokeW = conn.strokeWidth || 2;
+        const dash = (conn.dashArray && conn.dashArray !== "none") ? conn.dashArray : "none";
+        const startMarker = conn.startMarker || "none";
+        const endMarker = conn.endMarker || "triangle";
+        const startMarkerUrl = startMarker !== "none" ? `url(#marker-${startMarker})` : "none";
+        const endMarkerUrl = endMarker !== "none" ? `url(#marker-${endMarker})` : "none";
+
+        const path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", dString);
+        path.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === conn.id ? " selected" : ""));
+        path.setAttribute("stroke", strokeColor);
+        path.setAttribute("stroke-width", strokeW);
+        if (dash !== "none") path.setAttribute("stroke-dasharray", dash);
+        if (startMarkerUrl !== "none") path.setAttribute("marker-start", startMarkerUrl);
+        if (endMarkerUrl !== "none") path.setAttribute("marker-end", endMarkerUrl);
+        group.appendChild(path);
+
+        if (state.state.selectedConnectionId === conn.id) {
+            const glow = document.createElementNS(SVG_NS, "path");
+            glow.setAttribute("d", dString);
+            glow.setAttribute("class", "glow-line");
+            glow.setAttribute("stroke", "#fff");
+            glow.setAttribute("stroke-width", strokeW + 2);
+            glow.setAttribute("filter", "url(#neonGlow)");
+            glow.style.animation = "neonPulse 2s ease-in-out infinite alternate";
+            if (dash !== "none") glow.setAttribute("stroke-dasharray", dash);
+            group.appendChild(glow);
+        }
+
+        const hit = document.createElementNS(SVG_NS, "path");
+        hit.setAttribute("d", dString);
+        hit.setAttribute("class", "connection-hit");
+        hit.dataset.connId = conn.id;
+        group.appendChild(hit);
+    },
+
+    _renderConnectionWaypoints: function(group, conn, absWaypoints, tempPath, totalLen) {
+        const waypoints = conn.waypoints || [];
+        absWaypoints.forEach((pt, idx) => {
+            if (!(state.state.selectedConnectionId === conn.id || (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id))) return;
+            const style = waypoints[idx].style || {};
+            const color = style.color || "#e8a030";
+            const shape = style.shape || "circle";
+            const size = { small: 4, medium: 6, large: 8 }[style.size] || 6;
+            const isSelected = state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id && state.state.selectedWaypoint.index === idx;
+
+            let el;
+            if (shape === "circle") {
+                el = document.createElementNS(SVG_NS, "circle");
+                el.setAttribute("cx", pt.x); el.setAttribute("cy", pt.y); el.setAttribute("r", size);
+            } else if (shape === "square") {
+                el = document.createElementNS(SVG_NS, "rect");
+                el.setAttribute("x", pt.x - size); el.setAttribute("y", pt.y - size);
+                el.setAttribute("width", size*2); el.setAttribute("height", size*2); el.setAttribute("rx", 2);
+            } else if (shape === "diamond") {
+                el = document.createElementNS(SVG_NS, "polygon");
+                el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y} ${pt.x},${pt.y + size} ${pt.x - size},${pt.y}`);
+            } else if (shape === "cross") {
+                el = document.createElementNS(SVG_NS, "g");
+                const l1 = document.createElementNS(SVG_NS, "line");
+                l1.setAttribute("x1", pt.x - size); l1.setAttribute("y1", pt.y - size);
+                l1.setAttribute("x2", pt.x + size); l1.setAttribute("y2", pt.y + size);
+                l1.setAttribute("stroke", color); l1.setAttribute("stroke-width", "2");
+                const l2 = document.createElementNS(SVG_NS, "line");
+                l2.setAttribute("x1", pt.x + size); l2.setAttribute("y1", pt.y - size);
+                l2.setAttribute("x2", pt.x - size); l2.setAttribute("y2", pt.y + size);
+                l2.setAttribute("stroke", color); l2.setAttribute("stroke-width", "2");
+                el.appendChild(l1); el.appendChild(l2);
+            } else if (shape === "triangle") {
+                el = document.createElementNS(SVG_NS, "polygon");
+                el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y + size} ${pt.x - size},${pt.y + size}`);
+            }
+            if (shape !== "cross") {
+                el.setAttribute("fill", color);
+                el.setAttribute("stroke", isSelected ? "#fff" : "var(--surface)");
+                el.setAttribute("stroke-width", "2");
+            }
+            el.setAttribute("class", "waypoint-circle" + (isSelected ? " selected" : ""));
+            el.dataset.connId = conn.id;
+            el.dataset.index = idx;
+            el.style.cursor = "pointer";
+            el.style.pointerEvents = "auto";
+            group.appendChild(el);
+        });
+    },
+
+    _renderConnectionLabel: function(group, conn, tempPath, totalLen) {
+        const midPt = tempPath.getPointAtLength(totalLen / 2);
+        const angle = conn.labelAngle || 0;
+        const offX = conn.labelOffsetX || 0;
+        const offY = conn.labelOffsetY || 0;
+        const pos = { x: midPt.x + offX, y: midPt.y + offY };
+
+        const text = document.createElementNS(SVG_NS, "text");
+        text.setAttribute("x", pos.x);
+        text.setAttribute("y", pos.y);
+        text.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
+        text.setAttribute("class", "connection-label");
+        text.textContent = conn.label;
+        let bbox;
+        try { group.appendChild(text); bbox = text.getBBox(); group.removeChild(text); } catch(e) { bbox = { width: 0, height: 0 }; }
+        if (bbox.width > 0) {
+            const bg = document.createElementNS(SVG_NS, "rect");
+            const pad = 4;
+            bg.setAttribute("x", pos.x - bbox.width/2 - pad);
+            bg.setAttribute("y", pos.y - bbox.height/2 - pad);
+            bg.setAttribute("width", bbox.width + 2*pad);
+            bg.setAttribute("height", bbox.height + 2*pad);
+            bg.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
+            bg.setAttribute("class", "connection-label-bg");
+            group.appendChild(bg);
+        }
+        group.appendChild(text);
+
+        const dragHandle = document.createElementNS(SVG_NS, "rect");
+        dragHandle.setAttribute("x", pos.x - 20);
+        dragHandle.setAttribute("y", pos.y - 10);
+        dragHandle.setAttribute("width", 40);
+        dragHandle.setAttribute("height", 20);
+        dragHandle.setAttribute("class", "label-drag-handle");
+        dragHandle.dataset.connId = conn.id;
+        group.appendChild(dragHandle);
+    },
+
+    // ========== ОСНОВНОЙ МЕТОД РЕНДЕРИНГА СВЯЗЕЙ (рефакторинг) ==========
     renderConnections: function() {
-        let svg = document.getElementById("guidesSvg");
-        if (!this._connElements) this._connElements = new Map;
+        const svg = document.getElementById("guidesSvg");
+        if (!this._connElements) this._connElements = new Map();
         const existingIds = new Set(state.state.connections.map(c => c.id));
         for (const [id, group] of this._connElements) {
             if (!existingIds.has(id)) {
@@ -1897,138 +2036,37 @@ if (!isBlockLocked) this.initDrag(e, n, i);
             let group = this._connElements.get(conn.id);
             if (group) { group.remove(); this._connElements.delete(conn.id); }
             group = document.createElementNS(SVG_NS, "g");
-            let pathData = buildConnectionPath(conn);
+            const pathData = buildConnectionPath(conn);
             if (!pathData) return;
-            let dString = pathData.d;
-            let totalLen = pathData.totalLen;
-            let waypoints = conn.waypoints || [];
-            let absWaypoints = [];
-            let tempPath = document.createElementNS(SVG_NS, "path");
+            const dString = pathData.d;
+            const totalLen = pathData.totalLen;
+            const waypoints = conn.waypoints || [];
+            const absWaypoints = [];
+            const tempPath = document.createElementNS(SVG_NS, "path");
             tempPath.setAttribute("d", dString);
+            // Абсолютные позиции для waypoints
             waypoints.forEach(wp => {
-                let style = wp.style || {};
+                const style = wp.style || {};
                 if (wp.t !== undefined) {
-                    let targetDist = wp.t * totalLen;
-                    let pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
+                    const targetDist = wp.t * totalLen;
+                    const pt = tempPath.getPointAtLength(Math.min(targetDist, totalLen));
                     absWaypoints.push({ x: pt.x, y: pt.y, style });
                 } else {
                     let ax = wp.offsetX, ay = wp.offsetY;
                     if (wp.blockId) {
-                        let b = state.getBlock(wp.blockId);
+                        const b = state.getBlock(wp.blockId);
                         if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
                     }
                     absWaypoints.push({ x: ax, y: ay, style });
                 }
             });
-            let strokeColor = conn.stroke || "#e8a030", strokeW = conn.strokeWidth || 2;
-            let dash = conn.dashArray && conn.dashArray !== "none" ? conn.dashArray : "none";
-            let startMarker = conn.startMarker || "none", endMarker = conn.endMarker || "triangle";
-            let startMarkerUrl = startMarker !== "none" ? `url(#marker-${startMarker})` : "none";
-            let endMarkerUrl = endMarker !== "none" ? `url(#marker-${endMarker})` : "none";
-            let path = document.createElementNS(SVG_NS, "path");
-            path.setAttribute("d", dString);
-            path.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === conn.id ? " selected" : ""));
-            path.setAttribute("stroke", strokeColor);
-            path.setAttribute("stroke-width", strokeW);
-            if (dash !== "none") path.setAttribute("stroke-dasharray", dash);
-            if (startMarkerUrl !== "none") path.setAttribute("marker-start", startMarkerUrl);
-            if (endMarkerUrl !== "none") path.setAttribute("marker-end", endMarkerUrl);
-            group.appendChild(path);
-            if (state.state.selectedConnectionId === conn.id) {
-                let glow = document.createElementNS(SVG_NS, "path");
-                glow.setAttribute("d", dString);
-                glow.setAttribute("class", "glow-line");
-                glow.setAttribute("stroke", "#fff");
-                glow.setAttribute("stroke-width", strokeW + 2);
-                glow.setAttribute("filter", "url(#neonGlow)");
-                glow.style.animation = "neonPulse 2s ease-in-out infinite alternate";
-                if (dash !== "none") glow.setAttribute("stroke-dasharray", dash);
-                group.appendChild(glow);
-            }
-            let hit = document.createElementNS(SVG_NS, "path");
-            hit.setAttribute("d", dString);
-            hit.setAttribute("class", "connection-hit");
-            hit.dataset.connId = conn.id;
-            group.appendChild(hit);
-            absWaypoints.forEach((pt, idx) => {
-                if (!(state.state.selectedConnectionId === conn.id || (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id))) return;
-                let style = waypoints[idx].style || {};
-                let color = style.color || "#e8a030";
-                let shape = style.shape || "circle";
-                let size = { small: 4, medium: 6, large: 8 }[style.size] || 6;
-                let isSelected = state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id && state.state.selectedWaypoint.index === idx;
-                let el;
-                if (shape === "circle") {
-                    el = document.createElementNS(SVG_NS, "circle");
-                    el.setAttribute("cx", pt.x); el.setAttribute("cy", pt.y); el.setAttribute("r", size);
-                } else if (shape === "square") {
-                    el = document.createElementNS(SVG_NS, "rect");
-                    el.setAttribute("x", pt.x - size); el.setAttribute("y", pt.y - size);
-                    el.setAttribute("width", size*2); el.setAttribute("height", size*2); el.setAttribute("rx", 2);
-                } else if (shape === "diamond") {
-                    el = document.createElementNS(SVG_NS, "polygon");
-                    el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y} ${pt.x},${pt.y + size} ${pt.x - size},${pt.y}`);
-                } else if (shape === "cross") {
-                    el = document.createElementNS(SVG_NS, "g");
-                    let l1 = document.createElementNS(SVG_NS, "line");
-                    l1.setAttribute("x1", pt.x - size); l1.setAttribute("y1", pt.y - size);
-                    l1.setAttribute("x2", pt.x + size); l1.setAttribute("y2", pt.y + size);
-                    l1.setAttribute("stroke", color); l1.setAttribute("stroke-width", "2");
-                    let l2 = document.createElementNS(SVG_NS, "line");
-                    l2.setAttribute("x1", pt.x + size); l2.setAttribute("y1", pt.y - size);
-                    l2.setAttribute("x2", pt.x - size); l2.setAttribute("y2", pt.y + size);
-                    l2.setAttribute("stroke", color); l2.setAttribute("stroke-width", "2");
-                    el.appendChild(l1); el.appendChild(l2);
-                } else if (shape === "triangle") {
-                    el = document.createElementNS(SVG_NS, "polygon");
-                    el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y + size} ${pt.x - size},${pt.y + size}`);
-                }
-                if (shape !== "cross") {
-                    el.setAttribute("fill", color);
-                    el.setAttribute("stroke", isSelected ? "#fff" : "var(--surface)");
-                    el.setAttribute("stroke-width", "2");
-                }
-                el.setAttribute("class", "waypoint-circle" + (isSelected ? " selected" : ""));
-                el.dataset.connId = conn.id;
-                el.dataset.index = idx;
-                el.style.cursor = "pointer";
-                el.style.pointerEvents = "auto";
-                group.appendChild(el);
-            });
+            // Рисуем путь
+            this._renderConnectionPath(group, conn, dString);
+            // Рисуем waypoints
+            this._renderConnectionWaypoints(group, conn, absWaypoints, tempPath, totalLen);
+            // Рисуем подпись
             if (conn.label && conn.label.trim()) {
-                let midPt = tempPath.getPointAtLength(totalLen / 2);
-                let angle = conn.labelAngle || 0;
-                let offX = conn.labelOffsetX || 0;
-                let offY = conn.labelOffsetY || 0;
-                let pos = { x: midPt.x + offX, y: midPt.y + offY };
-                let text = document.createElementNS(SVG_NS, "text");
-                text.setAttribute("x", pos.x);
-                text.setAttribute("y", pos.y);
-                text.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
-                text.setAttribute("class", "connection-label");
-                text.textContent = conn.label;
-                let bbox;
-                try { group.appendChild(text); bbox = text.getBBox(); group.removeChild(text); } catch(e) { bbox = { width: 0, height: 0 }; }
-                if (bbox.width > 0) {
-                    let bg = document.createElementNS(SVG_NS, "rect");
-                    let pad = 4;
-                    bg.setAttribute("x", pos.x - bbox.width/2 - pad);
-                    bg.setAttribute("y", pos.y - bbox.height/2 - pad);
-                    bg.setAttribute("width", bbox.width + 2*pad);
-                    bg.setAttribute("height", bbox.height + 2*pad);
-                    bg.setAttribute("transform", `rotate(${angle}, ${pos.x}, ${pos.y})`);
-                    bg.setAttribute("class", "connection-label-bg");
-                    group.appendChild(bg);
-                }
-                group.appendChild(text);
-                let dragHandle = document.createElementNS(SVG_NS, "rect");
-                dragHandle.setAttribute("x", pos.x - 20);
-                dragHandle.setAttribute("y", pos.y - 10);
-                dragHandle.setAttribute("width", 40);
-                dragHandle.setAttribute("height", 20);
-                dragHandle.setAttribute("class", "label-drag-handle");
-                dragHandle.dataset.connId = conn.id;
-                group.appendChild(dragHandle);
+                this._renderConnectionLabel(group, conn, tempPath, totalLen);
             }
             svg.appendChild(group);
             this._connElements.set(conn.id, group);
@@ -2788,47 +2826,41 @@ function alignBlocks(type, mainBlockId = null) {
     let blocks = ids.map(id => state.getBlock(id)).filter(b => b);
     if (blocks.length < 2) return;
 
-    let mainBlock = mainBlockId ? state.getBlock(mainBlockId) : getMainBlockForAlign();
-
+    let mainBlock = mainBlockId ? state.getBlock(mainBlockId) : null;
     const oldPositions = blocks.map(b => ({ id: b.id, x: b.x, y: b.y }));
     const bounds = getBlocksBounds(blocks);
     const { minX, maxX, minY, maxY, centerX, centerY } = bounds;
 
+    let targetX = null, targetY = null;
+
     switch (type) {
         case 'align-left':
-            if (mainBlock) blocks.forEach(b => b.x = mainBlock.x);
-            else blocks.forEach(b => b.x = minX);
+            targetX = mainBlock ? mainBlock.x : minX;
             break;
         case 'align-right':
-            if (mainBlock) blocks.forEach(b => b.x = mainBlock.x + mainBlock.width - b.width);
-            else blocks.forEach(b => b.x = maxX - b.width);
+            targetX = mainBlock ? mainBlock.x + mainBlock.width : maxX;
+            blocks.forEach(b => b.x = targetX - b.width);
             break;
         case 'align-top':
-            if (mainBlock) blocks.forEach(b => b.y = mainBlock.y);
-            else blocks.forEach(b => b.y = minY);
+            targetY = mainBlock ? mainBlock.y : minY;
             break;
         case 'align-bottom':
-            if (mainBlock) blocks.forEach(b => b.y = mainBlock.y + mainBlock.height - b.height);
-            else blocks.forEach(b => b.y = maxY - b.height);
+            targetY = mainBlock ? mainBlock.y + mainBlock.height : maxY;
+            blocks.forEach(b => b.y = targetY - b.height);
             break;
         case 'align-center-h':
-            if (mainBlock) {
-                const centerXMain = mainBlock.x + mainBlock.width / 2;
-                blocks.forEach(b => b.x = centerXMain - b.width / 2);
-            } else {
-                blocks.forEach(b => b.x = centerX - b.width / 2);
-            }
+            targetX = mainBlock ? mainBlock.x + mainBlock.width / 2 : centerX;
+            blocks.forEach(b => b.x = targetX - b.width / 2);
             break;
         case 'align-center-v':
-            if (mainBlock) {
-                const centerYMain = mainBlock.y + mainBlock.height / 2;
-                blocks.forEach(b => b.y = centerYMain - b.height / 2);
-            } else {
-                blocks.forEach(b => b.y = centerY - b.height / 2);
-            }
+            targetY = mainBlock ? mainBlock.y + mainBlock.height / 2 : centerY;
+            blocks.forEach(b => b.y = targetY - b.height / 2);
             break;
         default: return;
     }
+
+    if (targetX !== null) blocks.forEach(b => b.x = targetX);
+    if (targetY !== null) blocks.forEach(b => b.y = targetY);
 
     if (state.state.snapToGrid) {
         blocks.forEach(b => {
