@@ -2300,6 +2300,37 @@ const renderer = {
         document.addEventListener("pointerup", upHandler);
     },
     
+    _startLabelDrag(e, connId) {
+        const conn = state.state.connections.find(c => c.id === connId);
+        if (!conn) return;
+        const startX = e.clientX, startY = e.clientY;
+        const origOffsetX = conn.labelOffsetX || 0;
+        const origOffsetY = conn.labelOffsetY || 0;
+        let active = true;
+
+        const moveHandler = (me) => {
+            if (!active) return;
+            const dx = (me.clientX - startX) / state.state.zoom;
+            const dy = (me.clientY - startY) / state.state.zoom;
+            conn.labelOffsetX = origOffsetX + dx;
+            conn.labelOffsetY = origOffsetY + dy;
+            renderer.renderConnections();
+            if (state.state.selectedConnectionId === connId) N(conn);
+        };
+
+        const upHandler = () => {
+            active = false;
+            document.removeEventListener("pointermove", moveHandler);
+            document.removeEventListener("pointerup", upHandler);
+            if (conn.labelOffsetX !== origOffsetX || conn.labelOffsetY !== origOffsetY) {
+                history.push(HistoryActions.labelMove(connId, origOffsetX, origOffsetY, conn.labelOffsetX, conn.labelOffsetY));
+            }
+        };
+
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
+    },
+
 	_findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen) {
         let bestDist = Infinity, bestT = 0, insertIdx = 0;
         let cumDist = 0;
@@ -2520,44 +2551,16 @@ const renderer = {
         });
     },
 
-    setupLabelDrag: function() {
-    document.getElementById("guidesSvg").addEventListener("pointerdown", e => {
-        let t = e.target;
-        if (!t.classList.contains("label-drag-handle")) return;
-        e.stopPropagation(), e.preventDefault();
-        let connId = t.dataset.connId,
-            conn = state.state.connections.find(c => c.id === connId);
-        if (!conn) return;
-        let startX = e.clientX,
-            startY = e.clientY,
-            origOffsetX = conn.labelOffsetX || 0,
-            origOffsetY = conn.labelOffsetY || 0,
-            active = true,
-            moveHandler = me => {
-                if (!active) return;
-                let dx = (me.clientX - startX) / state.state.zoom,
-                    dy = (me.clientY - startY) / state.state.zoom;
-                conn.labelOffsetX = origOffsetX + dx;
-                conn.labelOffsetY = origOffsetY + dy;
-                renderer.renderConnections();
-                if (state.state.selectedConnectionId === connId) N(conn);
-            },
-            upHandler = me => {
-                active = false;
-                document.removeEventListener("pointermove", moveHandler);
-                document.removeEventListener("pointerup", upHandler);
-                if (conn.labelOffsetX !== origOffsetX || conn.labelOffsetY !== origOffsetY) {
-                    history.push(HistoryActions.labelMove(
-                        connId,
-                        origOffsetX, origOffsetY,
-                        conn.labelOffsetX, conn.labelOffsetY
-                    ));
-                }
-            };
-        document.addEventListener("pointermove", moveHandler);
-        document.addEventListener("pointerup", upHandler);
-    });
-},
+        setupLabelDrag: function() {
+        document.getElementById("guidesSvg").addEventListener("pointerdown", e => {
+            const handle = e.target.closest(".label-drag-handle");
+            if (!handle) return;
+            e.stopPropagation();
+            e.preventDefault();
+            const connId = handle.dataset.connId;
+            this._startLabelDrag(e, connId);
+        });
+    },
 
     deleteSelectedConnection: function() {
 		let connId = state.state.selectedConnectionId;
