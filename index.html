@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>dreamkin topology helper v.0.994</title>
+<title>dreamkin topology helper v.0.996</title>
 <style>
 :root {
 --bg:#2a2b2e;--surface:#161618;--card:#1e1e22;--border:#2a2a30;
@@ -348,7 +348,7 @@ font-size: 0.9em;
 <div class="toolbar-brand">
 <div id="toolbar-logo-badge"><span class="drm-icon-slot" data-icon="cubes"></span></div>
 <span id="toolbar-logo-text">drmTopoHelper</span>
-<span id="toolbar-version">v.0.994</span>
+<span id="toolbar-version">v.0.996</span>
 </div>
 <div class="divider"></div>
 
@@ -820,6 +820,60 @@ function showToast(e, t) {
         error: "circle_exclamation"
     };
     o.innerHTML = renderIconHTML(i[t] || i.info) + " " + e, n.appendChild(o), setTimeout(() => o.remove(), 3e3);
+}
+
+function adjustMenuPosition(menu, clientX, clientY) {
+    if (!menu) return;
+    const originalDisplay = menu.style.display;
+    const originalVisibility = menu.style.visibility;
+    menu.style.display = 'block';
+    menu.style.visibility = 'hidden';
+    menu.style.position = 'fixed';
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    const rect = menu.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    menu.style.display = originalDisplay;
+    menu.style.visibility = originalVisibility;
+    
+    let left = clientX;
+    let top = clientY;
+    if (left + width > window.innerWidth) left = window.innerWidth - width - 5;
+    if (top + height > window.innerHeight) top = window.innerHeight - height - 5;
+    if (left < 0) left = 5;
+    if (top < 0) top = 5;
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+}
+
+function getMainBlockForAlign() {
+    const alignMenu = document.getElementById('alignMenu');
+    if (alignMenu && alignMenu.dataset.mainBlockId) {
+        return state.getBlock(alignMenu.dataset.mainBlockId);
+    }
+    return null;
+}
+
+function updateLockButtonText() {
+    const lockBtn = document.querySelector('#contextMenu [data-action="lock"]');
+    if (!lockBtn) return;
+    const selectedIds = state.getSelectedIds();
+    const cnt = selectedIds.length;
+    if (cnt === 0) return;
+    const allLocked = selectedIds.every(id => state.getBlock(id)?.isLocked === true);
+    if (cnt > 1) {
+        const text = allLocked ? ' Разблокировать все' : ' Заблокировать все';
+        const icon = allLocked ? 'lock_open' : 'lock';
+        lockBtn.innerHTML = renderIconHTML(icon) + text;
+    } else {
+        const block = state.getBlock(selectedIds[0]);
+        if (block) {
+            const text = block.isLocked ? ' Разблокировать' : ' Заблокировать';
+            const icon = block.isLocked ? 'lock_open' : 'lock';
+            lockBtn.innerHTML = renderIconHTML(icon) + text;
+        }
+    }
 }
 
 function snapToGrid(e) {
@@ -1314,18 +1368,18 @@ const HistoryActions = {
 
     // Перемещение стрелками
     arrow(blocksData) {
-        return {
-            type: "arrow",
-            undo: () => {
-                blocksData.forEach(d => state.updateBlockPosition(d.id, d.oldX, d.oldY));
-                events.emit("state:changed");
-            },
-            redo: () => {
-                blocksData.forEach(d => state.updateBlockPosition(d.id, d.newX, d.newY));
-                events.emit("state:changed");
-            }
-        };
-    },
+		return {
+			type: "arrow",
+			undo: () => {
+				blocksData.forEach(d => state.updateBlockPosition(d.blockId, d.ox, d.oy));
+				events.emit("state:changed");
+			},
+			redo: () => {
+				blocksData.forEach(d => state.updateBlockPosition(d.blockId, d.nx, d.ny));
+				events.emit("state:changed");
+			}
+		};
+	},
 
     // Выравнивание блоков
     align(blocksData) {
@@ -1408,6 +1462,14 @@ function cloneConnection(e) {
         labelOffsetX: e.labelOffsetX || 0,
         labelOffsetY: e.labelOffsetY || 0
     };
+}
+
+function closeAllPanels() {
+    document.getElementById("connectionPanel").classList.remove("open");
+    document.getElementById("waypointPanel").classList.remove("open");
+    state.state.selectedConnectionId = null;
+    state.state.selectedWaypoint = null;
+    events.emit("state:changed");
 }
 
 function replaceBlock(e) {
@@ -1604,7 +1666,7 @@ const renderer = {
             let s = e.target.closest("[data-action]"),
                 l = s ? s.dataset.action : null;
             if (interaction && interaction.altHeld && !l) return interaction.isAltDragging = !0, n.classList.add("alt-grab-hint"), state.state.selectedIds.has(o) || state.selectBlock(o, !1), void this.initDrag(e, n, i);
-            if (n.classList.remove("alt-grab-hint"), "edit" === l) return e.stopPropagation(), e.preventDefault(), void de(o);
+            if (n.classList.remove("alt-grab-hint"), "edit" === l) return e.stopPropagation(), e.preventDefault(), void openEditModal(o);
             if ("lock" === l) return e.stopPropagation(), e.preventDefault(), void state.lockBlock(o, !i.isLocked);
             if ("resize" === l && !i.isLocked) return e.stopPropagation(), e.preventDefault(), void this.initResize(e, n, i);
             if ("item-drag" === l && !i.isLocked) {
@@ -1619,7 +1681,7 @@ const isBlockLocked = !n.classList.contains("unlocked");
 if (!isBlockLocked) this.initDrag(e, n, i);
         }), canvasWrapper.addEventListener("dblclick", e => {
             let t = e.target.closest(".block");
-            !t || e.target.closest(".block-item") || e.target.closest("[data-action]") || de(t.dataset.blockId)
+            !t || e.target.closest(".block-item") || e.target.closest("[data-action]") || openEditModal(t.dataset.blockId)
         })
     },
 
@@ -1668,19 +1730,8 @@ if (!isBlockLocked) this.initDrag(e, n, i);
                 let oldItems = JSON.parse(JSON.stringify(o.items));
                 let newItems = o.items.filter((e, t) => t !== r);
                 state.updateBlock(o.id, { items: newItems });
-                history.push({
-                    type: "item-delete",
-                    undo: () => {
-                        state.updateBlock(o.id, { items: oldItems });
-                        events.emit("state:changed")
-                    },
-                    redo: () => {
-                        state.removeConnectionsForBlockItem(o.id, r);
-                        state.updateBlock(o.id, { items: newItems });
-                        events.emit("state:changed")
-                    }
-                });
-                showToast("Элемент удален", "info");
+				history.push(HistoryActions.itemDelete(o.id, r, oldItems));
+				showToast("Элемент удален", "info");
                 events.emit("state:changed");
                 return;
             }
@@ -2175,16 +2226,15 @@ if (!isBlockLocked) this.initDrag(e, n, i);
         });
 
         svg.addEventListener("contextmenu", ev => {
-            let t = ev.target.closest(".waypoint-circle");
-            if (!t) return;
-            ev.preventDefault(); ev.stopPropagation();
-            let connId = t.dataset.connId,
-                idx = parseInt(t.dataset.index);
-            state.selectWaypoint(connId, idx);
-            let menu = document.getElementById("wpContextMenu");
-            menu.style.left = ev.clientX + "px";
-            menu.style.top = ev.clientY + "px";
-            menu.classList.add("open");
+            let circle = ev.target.closest(".waypoint-circle");
+    if (!circle) return;
+    ev.preventDefault();
+    let connId = circle.dataset.connId;
+    let idx = parseInt(circle.dataset.index);
+    state.selectWaypoint(connId, idx);
+    let menu = document.getElementById("wpContextMenu");
+	adjustMenuPosition(menu, ev.clientX, ev.clientY);
+    menu.classList.add("open");
             menu.querySelector('[data-action="delete-wp"]').style.display = "block";
             menu.querySelector('[data-action="add-wp"]').style.display = "none";
         });
@@ -2246,17 +2296,15 @@ if (!isBlockLocked) this.initDrag(e, n, i);
 },
 
     deleteSelectedConnection: function() {
-        let e = state.state.selectedConnectionId;
-        if (!e) return;
-        let t = state.state.connections.find(t => t.id === e);
-        if (!t) return;
-        let n = cloneConnection(t);
-        state.removeConnection(e), history.push({
-            type: "conn-del",
-            undo: () => state.addConnection(n),
-            redo: () => state.removeConnection(e)
-        }), showToast("Связь удалена", "info")
-    },
+		let connId = state.state.selectedConnectionId;
+		if (!connId) return;
+		let conn = state.state.connections.find(c => c.id === connId);
+		if (!conn) return;
+		let backup = cloneConnection(conn);
+		state.removeConnection(connId);
+		history.push(HistoryActions.connectionRemove(connId, backup));
+		showToast("Связь удалена", "info");
+	},
 
     deleteSelectedWaypoint: function() {
         let e = state.state.selectedWaypoint;
@@ -2268,18 +2316,6 @@ if (!isBlockLocked) this.initDrag(e, n, i);
         return t.waypoints.splice(o, 1), state.state.selectedWaypoint = null, events.emit("state:changed"), 
 		history.push(HistoryActions.waypointRemove(e.connId, n, o));
 	showToast("Точка удалена", "info"), !0
-    },
-
-    // Этот метод нигде не используется, можно удалить, но оставлю для совместимости
-    pointToSegmentDist: function(e, t, n) {
-        let o = n.x - t.x,
-            i = n.y - t.y;
-        if (0 === o && 0 === i) return Math.hypot(e.x - t.x, e.y - t.y);
-        let s = ((e.x - t.x) * o + (e.y - t.y) * i) / (o * o + i * i);
-        s = Math.max(0, Math.min(1, s));
-        let l = t.x + s * o,
-            a = t.y + s * i;
-        return Math.hypot(e.x - l, e.y - a)
     },
 
     // ========== МЕТОДЫ ДЛЯ ПОРТОВ ==========
@@ -2463,7 +2499,8 @@ if (!isBlockLocked) this.initDrag(e, n, i);
                     }
                     return
                 }
-                o.style.left = e.clientX + "px", o.style.top = e.clientY + "px", o.classList.add("open")
+                adjustMenuPosition(o, e.clientX, e.clientY), 
+				o.classList.add("open")
             }
         });
     }
@@ -2621,12 +2658,15 @@ function updateConnectionList() {
         let l = n ? "→ " : "← ";
         l += i.title || "Блок", null !== o.itemIndex && i.items[o.itemIndex] && (l += " (" + i.items[o.itemIndex].label + ")"), s.innerHTML = "<span>" + l + "</span>";
         let a = document.createElement("button");
-        a.className = "unlink-btn", a.innerHTML = renderIconHTML("xmark"), a.title = "Отвязать", a.onclick = () => {
-            let e = cloneConnection(t);
-            state.removeConnection(t.id), 
-			history.push(HistoryActions.connectionRemove(e, n)); 
-		updateConnectionList(), showToast("Связь удалена", "info")
-        }, s.appendChild(a), connectionList.appendChild(s)
+        a.className = "unlink-btn", a.innerHTML = renderIconHTML("xmark"), a.title = "Отвязать", 
+		a.onclick = () => {
+			let e = cloneConnection(t);
+			state.removeConnection(t.id);
+			history.push(HistoryActions.connectionRemove(t.id, e));
+			updateConnectionList();
+			showToast("Связь удалена", "info");
+		},
+		 s.appendChild(a), connectionList.appendChild(s)
     })
 }
 
@@ -2733,15 +2773,7 @@ function alignBlocks(type, mainBlockId = null) {
     let blocks = ids.map(id => state.getBlock(id)).filter(b => b);
     if (blocks.length < 2) return;
 
-    let mainBlock = null;
-    if (mainBlockId) {
-        mainBlock = state.getBlock(mainBlockId);
-    } else {
-        const alignMenu = document.getElementById('alignMenu');
-        if (alignMenu && alignMenu.dataset.mainBlockId) {
-            mainBlock = state.getBlock(alignMenu.dataset.mainBlockId);
-        }
-    }
+    let mainBlock = mainBlockId ? state.getBlock(mainBlockId) : getMainBlockForAlign();
 
     const oldPositions = blocks.map(b => ({ id: b.id, x: b.x, y: b.y }));
     const bounds = getBlocksBounds(blocks);
@@ -2977,7 +3009,7 @@ const STORAGE_KEY = "drmTopoHelper";
 function autoSave() {
     try {
         let e = {
-            version: "0.994",
+            version: "0.996",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -3019,7 +3051,7 @@ document.getElementById("btnEdit").addEventListener("click", () => {
 }), document.getElementById("btnDelete").addEventListener("click", deleteSelected), document.getElementById("btnDuplicate").addEventListener("click", duplicateSelected), document.getElementById("btnSave").addEventListener("click", () => {
     if (!state.state.blocks.length) return void showToast("Нечего сохранять", "error");
     let e = {
-            version: "0.994",
+            version: "0.996",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -3081,8 +3113,8 @@ document.getElementById("btnConnections").addEventListener("click", function() {
     } else {
         document.getElementById("workspace").style.cursor = "";
         // Принудительно скрываем оба порта
-        sourcePort.classList.remove("active", "target-mode");
-        targetPort.classList.remove("active", "target-mode");
+        document.getElementById("sourcePort").classList.remove("active", "target-mode");
+		document.getElementById("targetPort").classList.remove("active", "target-mode");
         showToast("Режим связей выключен", "info");
     }
 });
@@ -3356,18 +3388,6 @@ interaction = new class {
             "Alt" === e.key && (this.altHeld = !1, this.isAltDragging = !1, this.ws.classList.remove("alt-drag"), this.ah.classList.remove("visible"), this.cw.querySelectorAll(".block.alt-grab-hint").forEach(e => e.classList.remove("alt-grab-hint")))
         }),
         this.ws.addEventListener("pointerdown", e => {
-            // Закрывать панели при клике на холст
-            if ((state.state.selectedConnectionId || state.state.selectedWaypoint) &&
-                !e.target.closest(".connection-hit") &&
-                !e.target.closest(".waypoint-circle") &&
-                !e.target.closest(".label-drag-handle") &&
-                !e.target.closest("#connectionPanel") &&
-                !e.target.closest("#waypointPanel")) {
-                state.state.selectedConnectionId && state.selectConnection(null);
-                state.state.selectedWaypoint && state.selectWaypoint(null, null);
-                renderer.updateGeneralUI();
-                return;
-            }
             e.target.closest(".block") || e.target.closest(".port-dot") || e.target.closest(".waypoint-circle") || e.target.closest(".label-drag-handle") || (0 === e.button ? (e.shiftKey || state.clearSelection(), this.rbActive = !0, this.rbSX = e.clientX, this.rbSY = e.clientY, this.ws.setPointerCapture(e.pointerId), e.preventDefault()) : 2 === e.button && (this.isPanning = !0, this.pSX = e.clientX, this.pSY = e.clientY, this.sSX = this.ws.scrollLeft, this.sSY = this.ws.scrollTop, this.ws.style.cursor = "grabbing", this.ws.setPointerCapture(e.pointerId), e.preventDefault()))
         }), this.ws.addEventListener("pointermove", e => {
             if (this.rbActive) {
@@ -3416,15 +3436,7 @@ interaction = new class {
                 alignMenu.style.display = 'none';
                 delete alignMenu.dataset.mainBlockId;
             }
-            const someLocked = [...state.state.selectedIds].some(id => state.getBlock(id)?.isLocked);
-            const allLocked = [...state.state.selectedIds].every(id => state.getBlock(id)?.isLocked);
-            let lockActionText = '';
-            if (cnt > 1) {
-                lockActionText = allLocked ? ' Разблокировать все' : ' Заблокировать все';
-            } else {
-                lockActionText = block.isLocked ? ' Разблокировать' : ' Заблокировать';
-            }
-            this.cm.querySelector('[data-action="lock"]').innerHTML = renderIconHTML(block.isLocked ? "lock_open" : "lock") + lockActionText;
+            updateLockButtonText();
             
             // --- КОРРЕКТИРОВКА ПОЗИЦИИ МЕНЮ, ЧТОБЫ НЕ ВЫХОДИЛО ЗА ГРАНИЦЫ ---
             const menu = this.cm;
@@ -3508,25 +3520,24 @@ interaction = new class {
         duplicateSelected();
     } else if (action === "delete") {
         deleteSelected();
-    } else if (action === "front") {
-        let block = state.getBlock(selectedId);
-        if (block) {
-            let oldIndex = state.state.blocks.indexOf(block);
-            state.bringToFront(selectedId);
-            history.push(HistoryActions.order(o, oldIndex, newIndex));
-        }
-    } else if (action === "back") {
-        let block = state.getBlock(selectedId);
-        if (block) {
-            let oldIndex = state.state.blocks.indexOf(block);
-            state.sendToBack(selectedId);
-            history.push({
-                type: "order", blockId: selectedId, oldIndex: oldIndex, newIndex: 0,
-                undo: () => { let b = state.state.blocks.shift(); state.state.blocks.splice(oldIndex, 0, b); events.emit("state:changed"); },
-                redo: () => { let b = state.state.blocks.splice(oldIndex, 1)[0]; state.state.blocks.unshift(b); events.emit("state:changed"); }
-            });
-        }
+    } 
+	else if (action === "front") {
+    let block = state.getBlock(selectedId);
+    if (block) {
+        let oldIndex = state.state.blocks.indexOf(block);
+        let newIndex = state.state.blocks.length - 1;
+        state.bringToFront(selectedId);
+        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
     }
+} else if (action === "back") {
+    let block = state.getBlock(selectedId);
+    if (block) {
+        let oldIndex = state.state.blocks.indexOf(block);
+        let newIndex = 0;
+        state.sendToBack(selectedId);
+        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
+    }
+}
 
     this.cm.classList.remove("open");
 });
