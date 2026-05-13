@@ -1637,7 +1637,53 @@ const renderer = {
         canvasWrapper.style.width = o + "px", canvasWrapper.style.height = i + "px", scrollArea && (scrollArea.style.width = Math.ceil(o * n) + "px", scrollArea.style.height = Math.ceil(i * n) + "px")
     },
 
-    setupCanvasDelegation() {
+        _onCanvasPointerDown(e) {
+        let t = e.target.closest(".connection-hit");
+        if (t) {
+            if (e.stopPropagation(), e.altKey || 2 === e.detail) return;
+            return void state.selectConnection(t.dataset.connId);
+        }
+        if (e.target.closest(".port-dot") || e.target.closest(".waypoint-circle")) return;
+        let n = e.target.closest(".block");
+        if (!n) return;
+        let o = n.dataset.blockId,
+            i = state.getBlock(o);
+        if (!i) return;
+        let s = e.target.closest("[data-action]"),
+            l = s ? s.dataset.action : null;
+        if (interaction && interaction.altHeld && !l) {
+            interaction.isAltDragging = !0;
+            n.classList.add("alt-grab-hint");
+            state.state.selectedIds.has(o) || state.selectBlock(o, !1);
+            return void this.initDrag(e, n, i);
+        }
+        if (n.classList.remove("alt-grab-hint"), "edit" === l) {
+            e.stopPropagation();
+            e.preventDefault();
+            return void openEditModal(o);
+        }
+        if ("lock" === l) {
+            e.stopPropagation();
+            e.preventDefault();
+            return void state.lockBlock(o, !i.isLocked);
+        }
+        if ("resize" === l && !i.isLocked) {
+            e.stopPropagation();
+            e.preventDefault();
+            return void this.initResize(e, n, i);
+        }
+        if ("item-drag" === l && !i.isLocked) {
+            e.stopPropagation();
+            e.preventDefault();
+            let t = parseInt(e.target.closest(".block-item").dataset.itemIndex);
+            return void this.initItemDrag(e, n, i, i.items[t]);
+        }
+        state.bringToFront(o);
+        e.shiftKey ? state.selectBlock(o, !0) : state.state.selectedIds.has(o) || state.selectBlock(o, !1);
+        const isBlockLocked = !n.classList.contains("unlocked");
+        if (!isBlockLocked) this.initDrag(e, n, i);
+    },
+	    setupCanvasDelegation() {
         canvasWrapper.addEventListener("mouseleave", () => {
             canvasWrapper.querySelectorAll(".block.preview-hover").forEach(b => b.classList.remove("preview-hover"));
         });
@@ -1678,38 +1724,11 @@ const renderer = {
                 }
             });
         });
-        canvasWrapper.addEventListener("pointerdown", e => {
-            let t = e.target.closest(".connection-hit");
-            if (t) {
-                if (e.stopPropagation(), e.altKey || 2 === e.detail) return;
-                return void state.selectConnection(t.dataset.connId)
-            }
-            if (e.target.closest(".port-dot") || e.target.closest(".waypoint-circle")) return;
-            let n = e.target.closest(".block");
-            if (!n) return;
-            let o = n.dataset.blockId,
-                i = state.getBlock(o);
-            if (!i) return;
-            let s = e.target.closest("[data-action]"),
-                l = s ? s.dataset.action : null;
-            if (interaction && interaction.altHeld && !l) return interaction.isAltDragging = !0, n.classList.add("alt-grab-hint"), state.state.selectedIds.has(o) || state.selectBlock(o, !1), void this.initDrag(e, n, i);
-            if (n.classList.remove("alt-grab-hint"), "edit" === l) return e.stopPropagation(), e.preventDefault(), void openEditModal(o);
-            if ("lock" === l) return e.stopPropagation(), e.preventDefault(), void state.lockBlock(o, !i.isLocked);
-            if ("resize" === l && !i.isLocked) return e.stopPropagation(), e.preventDefault(), void this.initResize(e, n, i);
-            if ("item-drag" === l && !i.isLocked) {
-                e.stopPropagation(), e.preventDefault();
-                let t = parseInt(e.target.closest(".block-item").dataset.itemIndex);
-                return void this.initItemDrag(e, n, i, i.items[t])
-            }
-            state.bringToFront(o);
-e.shiftKey ? state.selectBlock(o, !0) : state.state.selectedIds.has(o) || state.selectBlock(o, !1);
-// Проверяем блокировку по наличию класса "unlocked" у DOM-элемента блока
-const isBlockLocked = !n.classList.contains("unlocked");
-if (!isBlockLocked) this.initDrag(e, n, i);
-        }), canvasWrapper.addEventListener("dblclick", e => {
+        canvasWrapper.addEventListener("pointerdown", this._onCanvasPointerDown.bind(this));
+        canvasWrapper.addEventListener("dblclick", e => {
             let t = e.target.closest(".block");
-            !t || e.target.closest(".block-item") || e.target.closest("[data-action]") || openEditModal(t.dataset.blockId)
-        })
+            !t || e.target.closest(".block-item") || e.target.closest("[data-action]") || openEditModal(t.dataset.blockId);
+        });
     },
 
     initItemDrag(e, t, o, i) {
