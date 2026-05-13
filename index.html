@@ -855,9 +855,9 @@ if (sizeSelector) {
         const size = btn.dataset.size; // 'small', 'medium', 'large'
         const preset = BLOCK_SIZE_PRESETS[size];
         if (!preset) {
-            console.warn('Unknown size:', size);
-            return;
-        }
+			showToast(`Неизвестный размер: ${size}`, "error");
+			return;
+		}
         // Находим свободную позицию
         const pos = findFreePosition(preset.w, preset.h);
         const newId = 'block_' + (++state.state.blockIdCounter);
@@ -1636,68 +1636,7 @@ const renderer = {
             i = Math.max(workspace.clientHeight / n, t + CANVAS_PADDING);
         canvasWrapper.style.width = o + "px", canvasWrapper.style.height = i + "px", scrollArea && (scrollArea.style.width = Math.ceil(o * n) + "px", scrollArea.style.height = Math.ceil(i * n) + "px")
     },
-    _updateDraggedItemPosition(ev, targetBlock, blockObj, item, itemIndex, startX, startY, originalItemX, originalItemY, rafIdVar, outOfBoundsFlag) {
-        const currentX = ev.clientX;
-        const currentY = ev.clientY;
-        if (rafIdVar) return;
-        rafIdVar = requestAnimationFrame(() => {
-            const itemHeight = calcItemHeight(item);
-            const blockRect = targetBlock.getBoundingClientRect();
-            const isOutOfBounds = currentX < blockRect.left || currentX > blockRect.right || currentY < blockRect.top || currentY > blockRect.bottom;
-            let newX = Math.max(0, Math.min(originalItemX + (currentX - startX) / state.state.zoom, targetBlock.clientWidth - BLOCK_ITEM_WIDTH));
-            let newY = Math.max(0, Math.min(originalItemY + (currentY - startY) / state.state.zoom, targetBlock.clientHeight - itemHeight));
-            item.x = newX;
-            item.y = newY;
-            const itemDiv = targetBlock.querySelector('.block-item[data-item-index="' + itemIndex + '"]');
-            if (itemDiv) {
-                itemDiv.style.left = newX + "px";
-                itemDiv.style.top = newY + "px";
-                if (isOutOfBounds) {
-                    itemDiv.classList.add("drop-delete");
-                    itemDiv.classList.remove("drop-valid", "drop-invalid");
-                } else {
-                    itemDiv.classList.remove("drop-delete");
-                    const overlaps = isItemOverlapWithOthers(blockObj, item, newX, newY);
-                    itemDiv.classList.toggle("drop-valid", !overlaps);
-                    itemDiv.classList.toggle("drop-invalid", overlaps);
-                }
-            }
-            outOfBoundsFlag = isOutOfBounds;
-            rafIdVar = null;
-        });
-    },
-
-    _finalizeItemDrag(targetBlock, blockObj, item, itemIndex, originalItemX, originalItemY, wasOutOfBounds, oldItemsSnapshot) {
-        const itemDiv = targetBlock.querySelector('.block-item[data-item-index="' + itemIndex + '"]');
-        if (itemDiv) {
-            itemDiv.classList.remove("dragging-item", "drop-valid", "drop-invalid", "drop-delete");
-        }
-        if (wasOutOfBounds) {
-            state.removeConnectionsForBlockItem(blockObj.id, itemIndex);
-            const newItems = blockObj.items.filter((_, i) => i !== itemIndex);
-            state.updateBlock(blockObj.id, { items: newItems });
-            history.push(HistoryActions.itemDelete(blockObj.id, itemIndex, oldItemsSnapshot));
-            showToast("Элемент удален", "info");
-            events.emit("state:changed");
-            return;
-        }
-        if (isItemOverlapWithOthers(blockObj, item, item.x, item.y)) {
-            // возвращаем на исходную позицию
-            item.x = originalItemX;
-            item.y = originalItemY;
-            if (itemDiv) {
-                itemDiv.style.left = originalItemX + "px";
-                itemDiv.style.top = originalItemY + "px";
-            }
-            return;
-        }
-        if (item.x !== originalItemX || item.y !== originalItemY) {
-            history.push(HistoryActions.itemMove(blockObj.id, itemIndex, originalItemX, originalItemY, item.x, item.y));
-        }
-        renderer.renderConnections();
-        events.emit("state:changed");
-    },
-        _onCanvasPointerDown(e) {
+    		_onCanvasPointerDown(e) {
         let t = e.target.closest(".connection-hit");
         if (t) {
             if (e.stopPropagation(), e.altKey || 2 === e.detail) return;
@@ -2600,17 +2539,6 @@ const renderer = {
     },
     hidePort: e => {
         e.classList.remove("active", "target-mode")
-    },
-
-    // ========== НОВЫЙ МЕТОД ДЛЯ СБРОСА РЕЖИМА СВЯЗЕЙ ==========
-    resetConnectionMode: function() {
-        if (this._connModeState) {
-            this._connModeState.c = null;
-            this._connModeState.d = -999;
-            this._connModeState.r = -999;
-        }
-        this.hidePort(document.getElementById("sourcePort"));
-        this.hidePort(document.getElementById("targetPort"));
     },
 
     // ========== setupConnections с сохранением состояния ==========
@@ -3692,194 +3620,353 @@ zoomController = new class {
 }, 
 
 interaction = new class {
-    constructor(e) {
-        this.vp = e, this.ws = document.getElementById("workspace"), this.cw = document.getElementById("canvasWrapper"), this.cm = document.getElementById("contextMenu"), this.ah = document.getElementById("altHint"), this.altHeld = !1, this.isAltDragging = !1, this.rbEl = null, this.rbSX = 0, this.rbSY = 0, this.rbActive = !1, this.isPanning = !1, this.pSX = 0, this.pSY = 0, this.sSX = 0, this.sSY = 0, this.init()
+    constructor(vp) {
+        this.vp = vp;
+        this.ws = document.getElementById("workspace");
+        this.cw = document.getElementById("canvasWrapper");
+        this.cm = document.getElementById("contextMenu");
+        this.ah = document.getElementById("altHint");
+
+        this.altHeld = false;
+        this.isAltDragging = false;
+
+        // Rubber band
+        this.rbEl = null;
+        this.rbSX = 0;
+        this.rbSY = 0;
+        this.rbActive = false;
+
+        // Panning
+        this.isPanning = false;
+        this.pSX = 0;
+        this.pSY = 0;
+        this.sSX = 0;
+        this.sSY = 0;
+
+        this.init();
     }
-    init() {
-        document.addEventListener("keydown", e => {
-            "Alt" === e.key && (this.altHeld = !0, this.ws.classList.add("alt-drag"), this.ah.classList.add("visible"))
-        });
-        document.addEventListener("keyup", e => {
-            "Alt" === e.key && (this.altHeld = !1, this.isAltDragging = !1, this.ws.classList.remove("alt-drag"), this.ah.classList.remove("visible"), this.cw.querySelectorAll(".block.alt-grab-hint").forEach(e => e.classList.remove("alt-grab-hint")))
-        }),
-        this.ws.addEventListener("pointerdown", e => {
-            e.target.closest(".block") || e.target.closest(".port-dot") || e.target.closest(".waypoint-circle") || e.target.closest(".label-drag-handle") || (0 === e.button ? (e.shiftKey || state.clearSelection(), this.rbActive = !0, this.rbSX = e.clientX, this.rbSY = e.clientY, this.ws.setPointerCapture(e.pointerId), e.preventDefault()) : 2 === e.button && (this.isPanning = !0, this.pSX = e.clientX, this.pSY = e.clientY, this.sSX = this.ws.scrollLeft, this.sSY = this.ws.scrollTop, this.ws.style.cursor = "grabbing", this.ws.setPointerCapture(e.pointerId), e.preventDefault()))
-        }), this.ws.addEventListener("pointermove", e => {
-            if (this.rbActive) {
-                let t = Math.abs(e.clientX - this.rbSX),
-                    n = Math.abs(e.clientY - this.rbSY);
-                if (t > 4 || n > 4) {
-                    this.rbEl || (this.rbEl = document.createElement("div"), this.rbEl.className = "rubber-band", this.cw.appendChild(this.rbEl));
-                    let t = this.ws.getBoundingClientRect(),
-                        n = Math.min(e.clientX, this.rbSX) - t.left + this.ws.scrollLeft,
-                        o = Math.min(e.clientY, this.rbSY) - t.top + this.ws.scrollTop,
-                        i = Math.abs(e.clientX - this.rbSX),
-                        s = Math.abs(e.clientY - this.rbSY);
-                    this.rbEl.style.cssText = `left:${n/state.state.zoom}px;top:${o/state.state.zoom}px;width:${i/state.state.zoom}px;height:${s/state.state.zoom}px`;
-                    let l = { x: n / state.state.zoom, y: o / state.state.zoom, width: i / state.state.zoom, height: s / state.state.zoom },
-                        a = new Set;
-                    state.state.blocks.forEach(e => {
-                        let t = document.getElementById(e.id);
-                        t && (e.x < l.x + l.width && e.x + e.width > l.x && e.y < l.y + l.height && e.y + e.height > l.y ? (a.add(e.id), t.classList.add("selected", "rb-preview")) : t.classList.remove("selected", "rb-preview"))
-                    }), state.state.selectedIds = a, renderer.updateGeneralUI()
+
+    // ========== КЛАВИАТУРА ==========
+    _setupKeyboardEvents() {
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Alt") {
+                this.altHeld = true;
+                this.ws.classList.add("alt-drag");
+                this.ah.classList.add("visible");
+            }
+            if (e.ctrlKey && e.code === "KeyZ" && !e.shiftKey) {
+                e.preventDefault();
+                history.undo() && showToast("↩ Отменено", "info");
+            }
+            if (e.ctrlKey && (e.code === "KeyY" || (e.shiftKey && e.code === "KeyZ"))) {
+                e.preventDefault();
+                history.redo() && showToast("↪ Повторено", "info");
+            }
+            if (e.ctrlKey && e.code === "KeyD") {
+                e.preventDefault();
+                if (state.getSelectedIds().length) duplicateSelected();
+            }
+            const activeTag = document.activeElement.tagName;
+            if (!["INPUT", "TEXTAREA", "SELECT"].includes(activeTag)) {
+                const selectedCount = state.getSelectedIds().size;
+                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) && selectedCount) {
+                    e.preventDefault();
+                    const step = e.shiftKey ? GRID_SIZE : 10;
+                    const ids = state.getSelectedIds();
+                    const changes = [];
+                    ids.forEach(id => {
+                        const block = state.getBlock(id);
+                        if (!block) return;
+                        let oldX = block.x, oldY = block.y;
+                        let newX = block.x, newY = block.y;
+                        switch (e.key) {
+                            case "ArrowLeft": newX -= step; break;
+                            case "ArrowRight": newX += step; break;
+                            case "ArrowUp": newY -= step; break;
+                            case "ArrowDown": newY += step; break;
+                        }
+                        changes.push({ blockId: id, ox: oldX, oy: oldY, nx: newX, ny: newY });
+                        state.updateBlockPosition(id, newX, newY);
+                    });
+                    history.push(HistoryActions.arrow(changes));
+                    events.emit("state:changed");
+                }
+                if (e.key === "Delete" || e.key === "Backspace") {
+                    if (state.getSelectedIds().size) deleteSelected();
+                    else if (state.state.selectedConnectionId) renderer.deleteSelectedConnection();
+                    else if (state.state.selectedWaypoint) renderer.deleteSelectedWaypoint();
+                }
+                if (e.key === "Enter" && selectedCount === 1 && !["INPUT", "TEXTAREA"].includes(activeTag)) {
+                    openEditModal([...state.state.selectedIds][0]);
+                }
+                if (e.key === "Escape") state.clearSelection();
+                if (e.ctrlKey && e.code === "KeyA" && !["INPUT", "TEXTAREA"].includes(activeTag)) {
+                    e.preventDefault();
+                    state.state.selectedIds = new Set(state.state.blocks.map(b => b.id));
+                    events.emit("selection:changed", state.state.selectedIds);
                 }
             }
-            this.isPanning && (this.ws.scrollLeft = this.sSX - (e.clientX - this.pSX) / state.state.zoom, this.ws.scrollTop = this.sSY - (e.clientY - this.pSY) / state.state.zoom, this.vp.clamp())
-        }), this.ws.addEventListener("pointerup", e => {
-            this.rbActive && (this.rbActive = !1, this.rbEl && (this.rbEl.remove(), this.rbEl = null, events.emit("selection:changed", state.state.selectedIds)), this.cw.querySelectorAll(".block.rb-preview").forEach(e => e.classList.remove("rb-preview"))), 2 === e.button && this.isPanning && (this.isPanning = !1, this.ws.style.cursor = "")
-        }), 
-		
-		this.ws.addEventListener("contextmenu", e => {
-    e.preventDefault();
-    let targetBlock = e.target.closest(".block");
-    if (targetBlock) {
-        let blockId = targetBlock.dataset.blockId;
-        if (!state.state.selectedIds.has(blockId)) {
-            state.selectBlock(blockId, false);
-        }
-        let block = state.getBlock(blockId);
-        if (block) {
-            const cnt = state.getSelectedIds().length;
-            const alignDivider = document.querySelector('#contextMenu .align-divider');
-            const alignMenu = document.getElementById('alignMenu');
-            if (cnt >= 2) {
-                alignDivider.style.display = 'block';
-                alignMenu.style.display = 'flex';
-                alignMenu.dataset.mainBlockId = blockId;
+        });
+
+        document.addEventListener("keyup", (e) => {
+            if (e.key === "Alt") {
+                this.altHeld = false;
+                this.isAltDragging = false;
+                this.ws.classList.remove("alt-drag");
+                this.ah.classList.remove("visible");
+                this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
+            }
+        });
+    }
+
+    // ========== МЫШЬ: РЕЗИНОВАЯ ЛЕНТА И ПАНОРАМИРОВАНИЕ ==========
+    _setupMouseEvents() {
+        this.ws.addEventListener("pointerdown", (e) => {
+            // Закрыть панели при клике на пустое место
+            if ((state.state.selectedConnectionId || state.state.selectedWaypoint) &&
+                !e.target.closest(".connection-hit") &&
+                !e.target.closest(".waypoint-circle") &&
+                !e.target.closest(".label-drag-handle") &&
+                !e.target.closest("#connectionPanel") &&
+                !e.target.closest("#waypointPanel")) {
+                state.selectConnection(null);
+                state.selectWaypoint(null, null);
+                renderer.updateGeneralUI();
+                return;
+            }
+            // Если клик не по блоку, порту, waypoint или подписи – начинаем резинку или панорамирование
+            if (!e.target.closest(".block") && !e.target.closest(".port-dot") && !e.target.closest(".waypoint-circle") && !e.target.closest(".label-drag-handle")) {
+                if (e.button === 0) {
+                    if (!e.shiftKey) state.clearSelection();
+                    this.rbActive = true;
+                    this.rbSX = e.clientX;
+                    this.rbSY = e.clientY;
+                    this.ws.setPointerCapture(e.pointerId);
+                    e.preventDefault();
+                } else if (e.button === 2) {
+                    this.isPanning = true;
+                    this.pSX = e.clientX;
+                    this.pSY = e.clientY;
+                    this.sSX = this.ws.scrollLeft;
+                    this.sSY = this.ws.scrollTop;
+                    this.ws.style.cursor = "grabbing";
+                    this.ws.setPointerCapture(e.pointerId);
+                    e.preventDefault();
+                }
+            }
+        });
+
+        this.ws.addEventListener("pointermove", (e) => {
+            // Резиновая лента
+            if (this.rbActive) {
+                const dx = Math.abs(e.clientX - this.rbSX);
+                const dy = Math.abs(e.clientY - this.rbSY);
+                if (dx > 4 || dy > 4) {
+                    if (!this.rbEl) {
+                        this.rbEl = document.createElement("div");
+                        this.rbEl.className = "rubber-band";
+                        this.cw.appendChild(this.rbEl);
+                    }
+                    const wsRect = this.ws.getBoundingClientRect();
+                    const left = Math.min(e.clientX, this.rbSX) - wsRect.left + this.ws.scrollLeft;
+                    const top = Math.min(e.clientY, this.rbSY) - wsRect.top + this.ws.scrollTop;
+                    const width = Math.abs(e.clientX - this.rbSX);
+                    const height = Math.abs(e.clientY - this.rbSY);
+                    this.rbEl.style.cssText = `left:${left / state.state.zoom}px;top:${top / state.state.zoom}px;width:${width / state.state.zoom}px;height:${height / state.state.zoom}px`;
+                    const rect = { x: left / state.state.zoom, y: top / state.state.zoom, width: width / state.state.zoom, height: height / state.state.zoom };
+                    const newSelected = new Set();
+                    state.state.blocks.forEach(block => {
+                        const el = document.getElementById(block.id);
+                        if (el && block.x < rect.x + rect.width && block.x + block.width > rect.x && block.y < rect.y + rect.height && block.y + block.height > rect.y) {
+                            newSelected.add(block.id);
+                            el.classList.add("selected", "rb-preview");
+                        } else if (el) {
+                            el.classList.remove("selected", "rb-preview");
+                        }
+                    });
+                    state.state.selectedIds = newSelected;
+                    renderer.updateGeneralUI();
+                }
+            }
+            // Панорамирование
+            if (this.isPanning) {
+                this.ws.scrollLeft = this.sSX - (e.clientX - this.pSX) / state.state.zoom;
+                this.ws.scrollTop = this.sSY - (e.clientY - this.pSY) / state.state.zoom;
+                this.vp.clamp();
+            }
+        });
+
+        this.ws.addEventListener("pointerup", (e) => {
+            if (this.rbActive) {
+                this.rbActive = false;
+                if (this.rbEl) {
+                    this.rbEl.remove();
+                    this.rbEl = null;
+                }
+                this.cw.querySelectorAll(".block.rb-preview").forEach(el => el.classList.remove("rb-preview"));
+                events.emit("selection:changed", state.state.selectedIds);
+            }
+            if (e.button === 2 && this.isPanning) {
+                this.isPanning = false;
+                this.ws.style.cursor = "";
+            }
+        });
+
+        this.ws.addEventListener("lostpointercapture", () => {
+            this.isPanning = false;
+            this.isAltDragging = false;
+            this.rbActive = false;
+            if (this.rbEl) {
+                this.rbEl.remove();
+                this.rbEl = null;
+            }
+            this.ws.style.cursor = "";
+            this.ws.classList.remove("alt-drag");
+            this.ah.classList.remove("visible");
+            this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
+        });
+    }
+
+    // ========== КОНТЕКСТНОЕ МЕНЮ БЛОКОВ ==========
+    _setupContextMenuEvents() {
+        this.ws.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            const targetBlock = e.target.closest(".block");
+            if (targetBlock) {
+                const blockId = targetBlock.dataset.blockId;
+                if (!state.state.selectedIds.has(blockId)) {
+                    state.selectBlock(blockId, false);
+                }
+                const block = state.getBlock(blockId);
+                if (block) {
+                    const cnt = state.getSelectedIds().length;
+                    const alignDivider = document.querySelector('#contextMenu .align-divider');
+                    const alignMenu = document.getElementById('alignMenu');
+                    if (cnt >= 2) {
+                        alignDivider.style.display = 'block';
+                        alignMenu.style.display = 'flex';
+                        alignMenu.dataset.mainBlockId = blockId;
+                    } else {
+                        alignDivider.style.display = 'none';
+                        alignMenu.style.display = 'none';
+                        delete alignMenu.dataset.mainBlockId;
+                    }
+                    updateLockButtonText();
+                    adjustMenuPosition(this.cm, e.clientX, e.clientY);
+                    this.cm.classList.add("open");
+                }
             } else {
-                alignDivider.style.display = 'none';
-                alignMenu.style.display = 'none';
-                delete alignMenu.dataset.mainBlockId;
+                this.cm.classList.remove("open");
             }
-            updateLockButtonText();
-            
-            adjustMenuPosition(this.cm, e.clientX, e.clientY);
-            
-            this.cm.classList.add("open");
-        }
-    } else {
-        this.cm.classList.remove("open");
-    }
-});
-		
-		document.addEventListener("click", e => {
-            e.target.closest(".context-menu") || (document.getElementById("contextMenu").classList.remove("open"), document.getElementById("connContextMenu").classList.remove("open"))
-        }), 
-		
-		this.cm.addEventListener("click", e => {
-    let item = e.target.closest(".ctx-item");
-    if (!item) return;
-    let action = item.dataset.action;
+        });
 
-    // ---------------------- ВЫРАВНИВАНИЕ ----------------------
-    if (action === 'align-left' || action === 'align-right' || action === 'align-top' || action === 'align-bottom' ||
-        action === 'align-center-h' || action === 'align-center-v') {
-        const alignMenu = document.getElementById('alignMenu');
-        const mainBlockId = alignMenu ? alignMenu.dataset.mainBlockId : null;
-        alignBlocks(action, mainBlockId);
-        this.cm.classList.remove("open");
-        return;
-    }
-
-    // ---------------------- МАССОВАЯ БЛОКИРОВКА ----------------------
-    if (action === "lock") {
-    const selectedIds = state.getSelectedIds();
-    if (selectedIds.length === 0) return;
-    // Определяем, все ли блоки заблокированы
-    const allLocked = selectedIds.every(id => state.getBlock(id)?.isLocked === true);
-    const newLockState = !allLocked;
-    // Сохраняем старые состояния для каждого блока
-    const oldStates = selectedIds.map(id => ({ id, wasLocked: state.getBlock(id)?.isLocked }));
-    // Применяем новое состояние
-    selectedIds.forEach(id => state.lockBlock(id, newLockState));
-    // Запись в историю (сохраняем ids и oldStates)
-    history.push(HistoryActions.massLock([...selectedIds], oldStates, newLockState));
-    events.emit("state:changed");
-    showToast(newLockState ? "Блоки заблокированы" : "Блоки разблокированы", "info");
-    this.cm.classList.remove("open");
-    return;
-}
-
-    // ---------------------- ОСТАЛЬНЫЕ ДЕЙСТВИЯ (для одного блока) ----------------------
-    let selectedId = [...state.state.selectedIds][0];
-    if (!selectedId) return;
-
-    if (action === "edit") {
-        openEditModal(selectedId);
-    } else if (action === "duplicate") {
-        duplicateSelected();
-    } else if (action === "delete") {
-        deleteSelected();
-    } 
-	else if (action === "front") {
-    let block = state.getBlock(selectedId);
-    if (block) {
-        let oldIndex = state.state.blocks.indexOf(block);
-        let newIndex = state.state.blocks.length - 1;
-        state.bringToFront(selectedId);
-        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
-    }
-} else if (action === "back") {
-    let block = state.getBlock(selectedId);
-    if (block) {
-        let oldIndex = state.state.blocks.indexOf(block);
-        let newIndex = 0;
-        state.sendToBack(selectedId);
-        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
-    }
-}
-
-    this.cm.classList.remove("open");
-});
-		 document.getElementById("connContextMenu").addEventListener("click", e => {
-            let t = e.target.closest(".ctx-item");
-            if (!t) return;
-            let n = t.dataset.action,
-                o = document.getElementById("connContextMenu"),
-                i = o.dataset.connId;
-            if (o.classList.remove("open"), "delete-conn" === n) renderer.deleteSelectedConnection();
-            else if ("add-wp-conn" === n) {
-                let e = parseFloat(o.dataset.clientX),
-                    t = parseFloat(o.dataset.clientY);
-                if (isNaN(e) || isNaN(t)) return;
-                renderer.addWaypointFromEvent({ clientX: e, clientY: t }, i)
-            } else if ("add-label" === n) {
-                state.selectConnection(i);
-                let e = state.state.connections.find(e => e.id === i);
-                e && (N(e), document.getElementById("connectionPanel").classList.add("open"), setTimeout(() => {
-                    let e = document.getElementById("connLabel");
-                    e.focus(), e.select()
-                }, 150))
+        document.addEventListener("click", (e) => {
+            if (!e.target.closest(".context-menu")) {
+                document.getElementById("contextMenu").classList.remove("open");
+                document.getElementById("connContextMenu").classList.remove("open");
+                document.getElementById("wpContextMenu").classList.remove("open");
             }
-        }), this.ws.addEventListener("lostpointercapture", () => {
-            this.isPanning && (this.isPanning = !1, this.ws.style.cursor = ""), this.isAltDragging && (this.isAltDragging = !1, this.ws.classList.remove("alt-drag"), this.ah.classList.remove("visible"), this.cw.querySelectorAll(".block.alt-grab-hint").forEach(e => e.classList.remove("alt-grab-hint"))), this.rbActive = !1, this.rbEl && (this.rbEl.remove(), this.rbEl = null)
-        }), document.addEventListener("keydown", e => {
-            if (editModal.classList.contains("open") || errorOverlay.classList.contains("open")) return void("Escape" === e.key && closeEditModal());
-            let n = state.state.selectedIds.size > 0,
-                o = null !== state.state.selectedConnectionId,
-                i = null !== state.state.selectedWaypoint,
-                s = "INPUT" === document.activeElement.tagName || "TEXTAREA" === document.activeElement.tagName || "SELECT" === document.activeElement.tagName;
-            if (e.ctrlKey && "KeyZ" === e.code && !e.shiftKey) return e.preventDefault(), void(history.undo() && showToast("↩ Отменено", "info"));
-            if (e.ctrlKey && ("KeyY" === e.code || e.shiftKey && "KeyZ" === e.code)) return e.preventDefault(), void(history.redo() && showToast("↪ Повторено", "info"));
-            if (e.ctrlKey && "KeyD" === e.code) return e.preventDefault(), void(n && duplicateSelected());
-            if (!s && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) && n) {
-                e.preventDefault();
-                let n = e.shiftKey ? GRID_SIZE : 10,
-                    o = state.getSelectedIds(),
-                    i = [];
-                return o.forEach(t => {
-                    let o = state.getBlock(t);
-                    if (!o) return;
-                    let s = o.x, l = o.y;
-                    "ArrowLeft" === e.key && (s -= n), "ArrowRight" === e.key && (s += n), "ArrowUp" === e.key && (l -= n), "ArrowDown" === e.key && (l += n), i.push({ blockId: t, ox: o.x, oy: o.y, nx: s, ny: l }), state.updateBlockPosition(t, s, l)
-                }), 
-				history.push(HistoryActions.arrow(i));
-			void events.emit("state:changed")
+        });
+
+        this.cm.addEventListener("click", (e) => {
+            const item = e.target.closest(".ctx-item");
+            if (!item) return;
+            const action = item.dataset.action;
+
+            // Выравнивание
+            if (action && (action.startsWith('align') || action.startsWith('distribute'))) {
+                const alignMenu = document.getElementById('alignMenu');
+                const mainBlockId = alignMenu ? alignMenu.dataset.mainBlockId : null;
+                alignBlocks(action, mainBlockId);
+                this.cm.classList.remove("open");
+                return;
             }
-            "Delete" !== e.key && "Backspace" !== e.key || !n || s ? "Delete" !== e.key && "Backspace" !== e.key || !o || n || s ? ("Delete" !== e.key && "Backspace" !== e.key || !i || s || !renderer.deleteSelectedWaypoint()) && ("Enter" !== e.key || !n || 1 !== state.state.selectedIds.size || s ? "Escape" !== e.key ? e.ctrlKey && "KeyA" === e.code && !s && (e.preventDefault(), state.state.selectedIds = new Set(state.state.blocks.map(e => e.id)), events.emit("selection:changed", state.state.selectedIds)) : state.clearSelection() : openEditModal([...state.state.selectedIds][0])) : renderer.deleteSelectedConnection() : deleteSelected()
-        })
+
+            // Массовая блокировка
+            if (action === "lock") {
+                const selectedIds = state.getSelectedIds();
+                if (selectedIds.length === 0) return;
+                const allLocked = selectedIds.every(id => state.getBlock(id)?.isLocked === true);
+                const newLockState = !allLocked;
+                const oldStates = selectedIds.map(id => ({ id, wasLocked: state.getBlock(id)?.isLocked }));
+                selectedIds.forEach(id => state.lockBlock(id, newLockState));
+                history.push(HistoryActions.massLock([...selectedIds], oldStates, newLockState));
+                events.emit("state:changed");
+                showToast(newLockState ? "Блоки заблокированы" : "Блоки разблокированы", "info");
+                this.cm.classList.remove("open");
+                return;
+            }
+
+            // Остальные действия (для одного блока)
+            const selectedId = [...state.state.selectedIds][0];
+            if (!selectedId) return;
+
+            switch (action) {
+                case "edit": openEditModal(selectedId); break;
+                case "duplicate": duplicateSelected(); break;
+                case "delete": deleteSelected(); break;
+                case "front": {
+                    const block = state.getBlock(selectedId);
+                    if (block) {
+                        const oldIndex = state.state.blocks.indexOf(block);
+                        const newIndex = state.state.blocks.length - 1;
+                        state.bringToFront(selectedId);
+                        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
+                    }
+                    break;
+                }
+                case "back": {
+                    const block = state.getBlock(selectedId);
+                    if (block) {
+                        const oldIndex = state.state.blocks.indexOf(block);
+                        const newIndex = 0;
+                        state.sendToBack(selectedId);
+                        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
+                    }
+                    break;
+                }
+            }
+            this.cm.classList.remove("open");
+        });
+    }
+
+    // ========== КОНТЕКСТНОЕ МЕНЮ СВЯЗЕЙ ==========
+    _setupConnContextMenuEvents() {
+        const connMenu = document.getElementById("connContextMenu");
+        connMenu.addEventListener("click", (e) => {
+            const item = e.target.closest(".ctx-item");
+            if (!item) return;
+            const action = item.dataset.action;
+            const connId = connMenu.dataset.connId;
+            connMenu.classList.remove("open");
+            if (action === "delete-conn") {
+                renderer.deleteSelectedConnection();
+            } else if (action === "add-wp-conn") {
+                const x = parseFloat(connMenu.dataset.clientX);
+                const y = parseFloat(connMenu.dataset.clientY);
+                if (isNaN(x) || isNaN(y)) return;
+                renderer.addWaypointFromEvent({ clientX: x, clientY: y }, connId);
+            } else if (action === "add-label") {
+                state.selectConnection(connId);
+                const conn = state.state.connections.find(c => c.id === connId);
+                if (conn) {
+                    N(conn);
+                    document.getElementById("connectionPanel").classList.add("open");
+                    setTimeout(() => document.getElementById("connLabel").focus(), 150);
+                }
+            }
+        });
+    }
+
+    // ========== ИНИЦИАЛИЗАЦИЯ ==========
+    init() {
+        this._setupKeyboardEvents();
+        this._setupMouseEvents();
+        this._setupContextMenuEvents();
+        this._setupConnContextMenuEvents();
     }
 }(zoomController),
+
 
 // Инициализация рендерера и взаимодействий
 renderer.init(), renderer.setupWaypointInteraction(), renderer.setupLabelDrag(), renderer.setupConnectionEdit(),
