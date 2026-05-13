@@ -1914,47 +1914,76 @@ if (!isBlockLocked) this.initDrag(e, n, i);
         return { nx: targetX, ny: targetY, guideX: drawGuideX, guideY: drawGuideY };
     },
 
-    initResize(e, t, o) {
-        let i = e.clientX,
-            s = e.clientY,
-            l = o.width,
-            a = o.height,
-            c = o.items.map(e => ({ x: e.x, y: e.y })),
-            d = i,
-            r = s,
-            h = null,
-            u = () => {
-                let e = Math.max(100, l + (d - i) / state.state.zoom),
-                    c = Math.max(80, a + (r - s) / state.state.zoom);
-                state.state.snapToGrid && (e = Math.max(100, snapToGrid(o.x + e) - o.x), c = Math.max(80, snapToGrid(o.y + c) - o.y));
-                let h = calcBlockAutosize(o.items, !0);
-                e = Math.max(h.width, e), c = Math.max(h.height, c), o.width = e, o.height = c, t.style.width = e + "px", t.style.height = c + "px", o.items.forEach((o, i) => {
-                    let s = calcItemHeight(o);
-                    o.x = Math.max(8, Math.min(o.x || 0, e - 8 - BLOCK_ITEM_WIDTH)), o.y = Math.max(8, Math.min(o.y || 0, c - 8 - s));
-                    let l = t.querySelector('.block-item[data-item-index="' + i + '"]');
-                    l && (l.style.left = o.x + "px", l.style.top = o.y + "px")
-                }), this.renderConnections()
-            },
-            p = e => {
-                d = e.clientX, r = e.clientY, h || (h = requestAnimationFrame(() => {
-                    u(), h = null
-                }))
-            },
-            f = () => {
-                if (h && cancelAnimationFrame(h), document.removeEventListener("pointermove", p), document.removeEventListener("pointerup", f), o.width !== l || o.height !== a) {
-                    let e = o.width,
-                        t = o.height,
-                        n = o.items.map(e => ({ x: e.x, y: e.y })),
-                        i = o.id;
-                    history.push(HistoryActions.resize(i,l,a,e,t,c,n));
+        initResize(e, t, o) {
+        let startX = e.clientX,
+            startY = e.clientY,
+            startWidth = o.width,
+            startHeight = o.height,
+            startItemsPos = o.items.map(item => ({ x: item.x, y: item.y })),
+            rafId = null;
+
+        t.classList.add("resizing");
+
+        const updateSize = () => {
+            let newWidth = Math.max(100, startWidth + (currentX - startX) / state.state.zoom);
+            let newHeight = Math.max(80, startHeight + (currentY - startY) / state.state.zoom);
+            if (state.state.snapToGrid) {
+                newWidth = Math.max(100, snapToGrid(o.x + newWidth) - o.x);
+                newHeight = Math.max(80, snapToGrid(o.y + newHeight) - o.y);
+            }
+            const autoSize = calcBlockAutosize(o.items, true);
+            newWidth = Math.max(autoSize.width, newWidth);
+            newHeight = Math.max(autoSize.height, newHeight);
+            o.width = newWidth;
+            o.height = newHeight;
+            t.style.width = newWidth + "px";
+            t.style.height = newHeight + "px";
+
+            // Корректируем позиции элементов внутри блока
+            o.items.forEach((item, idx) => {
+                const itemHeight = calcItemHeight(item);
+                item.x = Math.max(8, Math.min(item.x || 0, newWidth - 8 - BLOCK_ITEM_WIDTH));
+                item.y = Math.max(8, Math.min(item.y || 0, newHeight - 8 - itemHeight));
+                const itemDiv = t.querySelector('.block-item[data-item-index="' + idx + '"]');
+                if (itemDiv) {
+                    itemDiv.style.left = item.x + "px";
+                    itemDiv.style.top = item.y + "px";
                 }
-                this.renderConnections(), events.emit("state:changed")
-            };
-        document.addEventListener("pointermove", p), document.addEventListener("pointerup", f)
+            });
+            renderer.renderConnections();
+        };
+
+        let currentX = startX, currentY = startY;
+        const moveHandler = (me) => {
+            currentX = me.clientX;
+            currentY = me.clientY;
+            if (!rafId) {
+                rafId = requestAnimationFrame(() => {
+                    updateSize();
+                    rafId = null;
+                });
+            }
+        };
+
+        const upHandler = () => {
+            t.classList.remove("resizing");
+            if (rafId) cancelAnimationFrame(rafId);
+            document.removeEventListener("pointermove", moveHandler);
+            document.removeEventListener("pointerup", upHandler);
+
+            if (o.width !== startWidth || o.height !== startHeight) {
+                const newItemsPos = o.items.map(item => ({ x: item.x, y: item.y }));
+                history.push(HistoryActions.resize(o.id, startWidth, startHeight, o.width, o.height, startItemsPos, newItemsPos));
+            }
+            renderer.renderConnections();
+            events.emit("state:changed");
+        };
+
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
     },
 
-    // ========== ОРИГИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ renderConnections (без рефакторинга) ==========
-        // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ОТРИСОВКИ СВЯЗЕЙ ==========
+    // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ОТРИСОВКИ СВЯЗЕЙ ==========
     _renderConnectionPath: function(group, conn, dString) {
         const strokeColor = conn.stroke || "#e8a030";
         const strokeW = conn.strokeWidth || 2;
