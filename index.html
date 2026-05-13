@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>dreamkin topology helper v.0.993</title>
+<title>dreamkin topology helper v.0.994</title>
 <style>
 :root {
 --bg:#2a2b2e;--surface:#161618;--card:#1e1e22;--border:#2a2a30;
@@ -348,7 +348,7 @@ font-size: 0.9em;
 <div class="toolbar-brand">
 <div id="toolbar-logo-badge"><span class="drm-icon-slot" data-icon="cubes"></span></div>
 <span id="toolbar-logo-text">drmTopoHelper</span>
-<span id="toolbar-version">v.0.993</span>
+<span id="toolbar-version">v.0.994</span>
 </div>
 <div class="divider"></div>
 
@@ -607,12 +607,14 @@ const CANVAS_PADDING = 100,
     battery_charger: "Зарядное для ТСД"
   },
   SVG_ICONS = {
-'align-left': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="4" x2="21" y2="4"/><line x1="3" y1="8" x2="15" y2="8"/><line x1="3" y1="12" x2="18" y2="12"/><line x1="3" y1="16" x2="12" y2="16"/><line x1="3" y1="20" x2="20" y2="20"/></svg>',
-'align-right': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="4" x2="21" y2="4"/><line x1="9" y1="8" x2="21" y2="8"/><line x1="6" y1="12" x2="21" y2="12"/><line x1="12" y1="16" x2="21" y2="16"/><line x1="4" y1="20" x2="21" y2="20"/></svg>',
-'align-top': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="3" x2="20" y2="3"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="10" y1="11" x2="14" y2="11"/><line x1="6" y1="15" x2="18" y2="15"/><line x1="12" y1="19" x2="12" y2="19"/></svg>',
-'align-bottom': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="20" y2="21"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="10" y1="13" x2="14" y2="13"/><line x1="6" y1="9" x2="18" y2="9"/><line x1="12" y1="5" x2="12" y2="5"/></svg>',
-'align-center-h': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="6" y1="10" x2="18" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="10" y1="18" x2="14" y2="18"/></svg>',
-'align-center-v': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/><line x1="6" y1="4" x2="18" y2="4"/><line x1="6" y1="8" x2="18" y2="8"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="10" y1="20" x2="14" y2="20"/></svg>',
+'align-left': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M5 12 L12 7 L12 17 Z" fill="#ffffff" stroke="#ffffff"/><path d="M17 8 L17 16" stroke="#ffffff"/><path d="M21 8 L21 16" stroke="#ffffff"/></svg>',
+'align-right': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M19 12 L12 7 L12 17 Z" fill="#ffffff" stroke="#ffffff"/><path d="M7 8 L7 16" stroke="#ffffff"/><path d="M3 8 L3 16" stroke="#ffffff"/></svg>',
+'align-top': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M12 5 L7 12 L17 12 Z" fill="#ffffff" stroke="#ffffff"/><path d="M8 16 L16 16" stroke="#ffffff"/><path d="M8 20 L16 20" stroke="#ffffff"/></svg>',
+'align-bottom': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M12 19 L7 12 L17 12 Z" fill="#ffffff" stroke="#ffffff"/><path d="M8 8 L16 8" stroke="#ffffff"/><path d="M8 4 L16 4" stroke="#ffffff"/></svg>',
+'align-center-h': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><line x1="12" y1="3" x2="12" y2="21" stroke="#ffffff"/><line x1="5" y1="12" x2="19" y2="12" stroke="#4a4a56"/><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none"/></svg>',
+'align-center-v': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12" stroke="#ffffff"/><line x1="12" y1="5" x2="12" y2="19" stroke="#4a4a56"/><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none"/></svg>',
+
+
     windows: '<svg width="448" height="512" viewBox="0 0 448 512"><defs><linearGradient id="globalLight" gradientUnits="userSpaceOnUse" x1="44" y1="456" x2="404" y2="56"><stop offset="0%" stop-color="#000000" stop-opacity="0.18"/><stop offset="45%" stop-color="#000000" stop-opacity="0"/><stop offset="55%" stop-color="#ffffff" stop-opacity="0"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.45"/></linearGradient></defs><g><rect x="44" y="56" width="172" height="192" fill="#005B96"/><rect x="232" y="56" width="172" height="192" fill="#35A0E2"/><rect x="44" y="264" width="172" height="192" fill="#0280C4"/><rect x="232" y="264" width="172" height="192" fill="#6ABBEF"/></g><g fill="url(#globalLight)"><rect x="44" y="56" width="172" height="192"/><rect x="232" y="56" width="172" height="192"/><rect x="44" y="264" width="172" height="192"/><rect x="232" y="264" width="172" height="192"/></g></svg>',
     linux: '<svg aria-label="Linux" role="img" viewBox="0 0 512 512" fill="#333"><rect width="512" height="512" rx="15%" fill="#ffffff"/><g transform="matrix(2 0 0 2 256 256)"><path d="M-32-25c-3 7-24 29-22 51 8 92 36 30 78 53 0 0 75-42 15-110-17-24-2-43-13-59s-30-17-44-2 6 37-14 67"/><path d="M42 21s9-18-8-31c16 17 6 32 6 32h-3C36-13 27 6 14-56 29-73 0-88 0-60h-9c1-24-20-12-8 5-1 37-23 52-23 78-7-18 6-32 6-32s-18 15-7 37 31 17 17 27c22 15 56 5 55-27 1-8 22-5 24-3s-3-4-13-4m-56-78c-7-2-5-11-2-11s8 7 2 11m19 1c-5-7-1-14 4-13s5 13-4 13" fill="#eee"/><g fill="#fc2" stroke="#333" stroke-width="1"><path d="M-41 31l21 30c11 7 5 35-25 21-17-5-31-4-33-13s4-10 3-14c-4-22 14-11 19-22s5-16 15-2M71 45c-4-6 0-17-14-16-6 12-23 24-24 0-10 0-3 24-7 35-9 27 17 29 28 16l26-18c2-3 5-6-9-17m-92-92c-3-6 11-14 16-14s12 4 19 6 4 9 2 10S3-35-5-35s-10-8-16-12"/><path d="M-21-48c8 6 17 11 35-3"/></g><path d="M-10-54c-2 0 1-2 2-1m7 1c1-1-1-2-3-1"/></g></svg>',
     scanner_shk: '<svg fill="#ffffff" height="200px" width="200px" version="1.1" id="Layer_1" viewBox="0 0 512 512" xml:space="preserve"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <g> <path d="M240.905,102.63C134.963,77.406,59.887,96.486,24.977,122.743C9.523,134.366,0.657,148.207,0,162.133 c0,19.823,16.521,39.057,40.354,48.154C16.572,283.631,3.934,390.972,0,469.333C0,493.261,26.24,512,59.733,512h85.333 c4.71,0,8.533-3.814,8.533-8.533v-34.133c0-4.719-3.823-8.533-8.533-8.533c-18.586,0-33.758-18.671-34.125-41.788l25.404-118.554 c0.589-2.748-0.213-5.615-2.142-7.654c-0.802-0.845-1.365-1.783-2.065-2.671H153.6c2.799,0,5.419-1.374,7.014-3.678 c1.596-2.304,1.954-5.231,0.981-7.851c-3.661-9.771-0.265-37.905,17.084-60.262l5.239,2.62c1.826,0.896,3.9,1.143,5.888,0.64 l34.133-8.533c3.251-0.811,5.726-3.448,6.323-6.75l17.067-93.867C248.141,107.998,245.325,103.68,240.905,102.63z M35.234,136.388 c21.026-15.812,58.573-28.621,110.549-28.621c10.598,0,21.914,0.657,33.69,1.809c-0.077,0.461-0.273,0.87-0.273,1.357 c0,23.125-31.266,42.667-68.267,42.667H19.695C22.639,147.823,27.947,141.867,35.234,136.388z M94.054,416.341 c-0.128,0.589-0.188,1.195-0.188,1.792c0,29.542,18.483,54.153,42.667,58.897v17.903h-76.8c-23.125,0-42.667-11.725-42.675-25.173 c0.29-5.692,0.631-11.571,1.016-17.544c13.705-0.29,26.863-6.443,37.137-17.476c16.213-17.417,23.876-44.74,21.589-76.663 c-0.555-14.14,4.344-27.332,13.79-37.154c7.561-7.868,17.664-12.902,26.829-13.576L94.054,416.341z M143.369,273.067h-18.645 c-1.647-10.513,0.708-21.47,4.736-30.216c6.912-14.985,18.534-25.284,31.147-28.442 C147.337,234.539,142.327,257.246,143.369,273.067z M171.102,196.275c-23.066-1.289-45.551,14.302-57.131,39.433 c-8.823,19.14-9.037,38.955-1.425,55.014c-12.262,1.843-24.67,8.38-34.261,18.355c-12.689,13.201-19.277,30.831-18.526,49.929 c1.963,27.426-4.087,50.185-17.041,64.094c-6.682,7.177-14.942,11.213-23.441,11.844c5.692-74.931,18.449-165.615,39.979-227.337 c0.785-2.253,0.597-4.727-0.529-6.835c-1.126-2.099-3.081-3.644-5.393-4.233c-16.64-4.301-29.833-14.746-34.415-25.873h92.015 c27.793,0,52.343,11.025,62.848,26.317C172.919,196.642,172.032,196.326,171.102,196.275z M214.451,197.862l-19.627,4.907 c-4.275-17.365-18.765-31.974-39.322-40.636c24.363-10.257,40.363-28.834,40.695-50.526c10.59,1.493,21.453,3.311,32.87,5.82 L214.451,197.862z"></path> </g> </g> <g> <g> <path d="M452.267,0c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c17.818,0,42.667,55.194,42.667,145.067 S470.084,307.2,452.267,307.2c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c38.801,0,59.733-83.533,59.733-162.133 S491.068,0,452.267,0z"></path> </g> </g> <g> <g> <path d="M384,34.133c-4.71,0-8.533,3.814-8.533,8.533S379.29,51.2,384,51.2c20.181,0,42.667,45.559,42.667,110.933 S404.181,273.067,384,273.067c-4.71,0-8.533,3.814-8.533,8.533c0,4.719,3.823,8.533,8.533,8.533 c34.057,0,59.733-55.023,59.733-128S418.057,34.133,384,34.133z"></path> </g> </g> <g> <g> <path d="M315.733,68.267c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c23.125,0,42.667,35.166,42.667,76.8 c0,41.634-19.541,76.8-42.667,76.8c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533 c33.493,0,59.733-41.233,59.733-93.867S349.227,68.267,315.733,68.267z"></path> </g> </g> </g></svg>',
@@ -2459,62 +2461,41 @@ function alignBlocks(type, mainBlockId = null) {
     let blocks = ids.map(id => state.getBlock(id)).filter(b => b);
     if (blocks.length < 2) return;
 
-    // Если не передан mainBlockId, пробуем взять из data-атрибута меню
-    if (!mainBlockId) {
+    // Если передан mainBlockId, используем его, иначе пытаемся взять из menu
+    let mainBlock = null;
+    if (mainBlockId) {
+        mainBlock = state.getBlock(mainBlockId);
+    } else {
         const alignMenu = document.getElementById('alignMenu');
         if (alignMenu && alignMenu.dataset.mainBlockId) {
-            mainBlockId = alignMenu.dataset.mainBlockId;
+            mainBlock = state.getBlock(alignMenu.dataset.mainBlockId);
         }
     }
 
     const oldPositions = blocks.map(b => ({ id: b.id, x: b.x, y: b.y }));
 
-    // Для выравнивания по краям нужен главный блок
-    let mainBlock = null;
-    if (mainBlockId) {
-        mainBlock = state.getBlock(mainBlockId);
-        if (!mainBlock) mainBlock = null;
-    }
-
     switch (type) {
         case 'align-left':
-            if (mainBlock) {
-                const targetX = mainBlock.x;
-                blocks.forEach(b => b.x = targetX);
-            } else {
-                const minX = Math.min(...blocks.map(b => b.x));
-                blocks.forEach(b => b.x = minX);
-            }
+            if (mainBlock) blocks.forEach(b => b.x = mainBlock.x);
+            else { const minX = Math.min(...blocks.map(b => b.x)); blocks.forEach(b => b.x = minX); }
             break;
         case 'align-right':
-            if (mainBlock) {
-                const targetX = mainBlock.x + mainBlock.width;
-                blocks.forEach(b => b.x = targetX - b.width);
-            } else {
-                const maxX = Math.max(...blocks.map(b => b.x + b.width));
-                blocks.forEach(b => b.x = maxX - b.width);
-            }
+            if (mainBlock) blocks.forEach(b => b.x = mainBlock.x + mainBlock.width - b.width);
+            else { const maxX = Math.max(...blocks.map(b => b.x + b.width)); blocks.forEach(b => b.x = maxX - b.width); }
             break;
         case 'align-top':
-            if (mainBlock) {
-                const targetY = mainBlock.y;
-                blocks.forEach(b => b.y = targetY);
-            } else {
-                const minY = Math.min(...blocks.map(b => b.y));
-                blocks.forEach(b => b.y = minY);
-            }
+            if (mainBlock) blocks.forEach(b => b.y = mainBlock.y);
+            else { const minY = Math.min(...blocks.map(b => b.y)); blocks.forEach(b => b.y = minY); }
             break;
         case 'align-bottom':
-            if (mainBlock) {
-                const targetY = mainBlock.y + mainBlock.height;
-                blocks.forEach(b => b.y = targetY - b.height);
-            } else {
-                const maxY = Math.max(...blocks.map(b => b.y + b.height));
-                blocks.forEach(b => b.y = maxY - b.height);
-            }
+            if (mainBlock) blocks.forEach(b => b.y = mainBlock.y + mainBlock.height - b.height);
+            else { const maxY = Math.max(...blocks.map(b => b.y + b.height)); blocks.forEach(b => b.y = maxY - b.height); }
             break;
         case 'align-center-h':
-            {
+            if (mainBlock) {
+                const centerX = mainBlock.x + mainBlock.width / 2;
+                blocks.forEach(b => b.x = centerX - b.width / 2);
+            } else {
                 const minX = Math.min(...blocks.map(b => b.x));
                 const maxX = Math.max(...blocks.map(b => b.x + b.width));
                 const centerX = (minX + maxX) / 2;
@@ -2522,7 +2503,10 @@ function alignBlocks(type, mainBlockId = null) {
             }
             break;
         case 'align-center-v':
-            {
+            if (mainBlock) {
+                const centerY = mainBlock.y + mainBlock.height / 2;
+                blocks.forEach(b => b.y = centerY - b.height / 2);
+            } else {
                 const minY = Math.min(...blocks.map(b => b.y));
                 const maxY = Math.max(...blocks.map(b => b.y + b.height));
                 const centerY = (minY + maxY) / 2;
@@ -2769,7 +2753,7 @@ const STORAGE_KEY = "drmTopoHelper";
 function autoSave() {
     try {
         let e = {
-            version: "0.993",
+            version: "0.994",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -2811,7 +2795,7 @@ document.getElementById("btnEdit").addEventListener("click", () => {
 }), document.getElementById("btnDelete").addEventListener("click", deleteSelected), document.getElementById("btnDuplicate").addEventListener("click", duplicateSelected), document.getElementById("btnSave").addEventListener("click", () => {
     if (!state.state.blocks.length) return void showToast("Нечего сохранять", "error");
     let e = {
-            version: "0.993",
+            version: "0.994",
             timestamp: (new Date).toISOString(),
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
@@ -3191,8 +3175,7 @@ interaction = new class {
     let targetBlock = e.target.closest(".block");
     if (targetBlock) {
         let blockId = targetBlock.dataset.blockId;
-        let isSelected = state.state.selectedIds.has(blockId);
-        if (!isSelected) {
+        if (!state.state.selectedIds.has(blockId)) {
             state.selectBlock(blockId, false);
         }
         let block = state.getBlock(blockId);
@@ -3203,16 +3186,49 @@ interaction = new class {
             if (cnt >= 2) {
                 alignDivider.style.display = 'block';
                 alignMenu.style.display = 'flex';
-                // Сохраняем главный блок для выравнивания
                 alignMenu.dataset.mainBlockId = blockId;
             } else {
                 alignDivider.style.display = 'none';
                 alignMenu.style.display = 'none';
                 delete alignMenu.dataset.mainBlockId;
             }
-            this.cm.querySelector('[data-action="lock"]').innerHTML = renderIconHTML(block.isLocked ? "lock_open" : "lock") + (block.isLocked ? " Разблокировать" : " Заблокировать");
-            this.cm.style.left = e.clientX + "px";
-            this.cm.style.top = e.clientY + "px";
+            const someLocked = [...state.state.selectedIds].some(id => state.getBlock(id)?.isLocked);
+            const allLocked = [...state.state.selectedIds].every(id => state.getBlock(id)?.isLocked);
+            let lockActionText = '';
+            if (cnt > 1) {
+                lockActionText = allLocked ? ' Разблокировать все' : ' Заблокировать все';
+            } else {
+                lockActionText = block.isLocked ? ' Разблокировать' : ' Заблокировать';
+            }
+            this.cm.querySelector('[data-action="lock"]').innerHTML = renderIconHTML(block.isLocked ? "lock_open" : "lock") + lockActionText;
+            
+            // --- КОРРЕКТИРОВКА ПОЗИЦИИ МЕНЮ, ЧТОБЫ НЕ ВЫХОДИЛО ЗА ГРАНИЦЫ ---
+            const menu = this.cm;
+            // Временно делаем меню видимым, но невидимым для глаз, чтобы измерить его размеры
+            const originalDisplay = menu.style.display;
+            const originalVisibility = menu.style.visibility;
+            menu.style.display = 'block';
+            menu.style.visibility = 'hidden';
+            menu.style.position = 'fixed';
+            menu.style.left = '0px';
+            menu.style.top = '0px';
+            const rect = menu.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+            // Возвращаем исходные стили
+            menu.style.display = originalDisplay;
+            menu.style.visibility = originalVisibility;
+            
+            let left = e.clientX;
+            let top = e.clientY;
+            if (left + width > window.innerWidth) left = window.innerWidth - width - 5;
+            if (top + height > window.innerHeight) top = window.innerHeight - height - 5;
+            if (left < 0) left = 5;
+            if (top < 0) top = 5;
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+            // -----------------------------------------------------------
+            
             this.cm.classList.add("open");
         }
     } else {
@@ -3222,52 +3238,95 @@ interaction = new class {
 		
 		document.addEventListener("click", e => {
             e.target.closest(".context-menu") || (document.getElementById("contextMenu").classList.remove("open"), document.getElementById("connContextMenu").classList.remove("open"))
-        }), this.cm.addEventListener("click", e => {
+        }), 
+		
+		this.cm.addEventListener("click", e => {
     let item = e.target.closest(".ctx-item");
     if (!item) return;
-    let action = item.dataset.action,
-        selectedId = [...state.state.selectedIds][0];
-    
-    // Выравнивание (если выбрано несколько блоков)
-    if (action === 'align-left') alignBlocks('align-left');
-    else if (action === 'align-right') alignBlocks('align-right');
-    else if (action === 'align-top') alignBlocks('align-top');
-    else if (action === 'align-bottom') alignBlocks('align-bottom');
-    else if (action === 'align-center-h') alignBlocks('align-center-h');
-    else if (action === 'align-center-v') alignBlocks('align-center-v');
-    else if (selectedId) {
-        if (action === "edit") openEditModal(selectedId);
-        else if (action === "duplicate") duplicateSelected();
-        else if (action === "delete") deleteSelected();
-        else if (action === "lock") {
-            let block = state.getBlock(selectedId);
-            if (block) state.lockBlock(selectedId, !block.isLocked);
-        } else if (action === "front") {
-            let block = state.getBlock(selectedId);
-            if (block) {
-                let oldIndex = state.state.blocks.indexOf(block);
-                state.bringToFront(selectedId);
-                history.push({
-                    type: "order", blockId: selectedId, oldIndex: oldIndex, newIndex: state.state.blocks.length - 1,
-                    undo: () => { let b = state.state.blocks.splice(state.state.blocks.length - 1, 1)[0]; state.state.blocks.splice(oldIndex, 0, b); events.emit("state:changed"); },
-                    redo: () => { let b = state.state.blocks.splice(oldIndex, 1)[0]; state.state.blocks.push(b); events.emit("state:changed"); }
-                });
-            }
-        } else if (action === "back") {
-            let block = state.getBlock(selectedId);
-            if (block) {
-                let oldIndex = state.state.blocks.indexOf(block);
-                state.sendToBack(selectedId);
-                history.push({
-                    type: "order", blockId: selectedId, oldIndex: oldIndex, newIndex: 0,
-                    undo: () => { let b = state.state.blocks.shift(); state.state.blocks.splice(oldIndex, 0, b); events.emit("state:changed"); },
-                    redo: () => { let b = state.state.blocks.splice(oldIndex, 1)[0]; state.state.blocks.unshift(b); events.emit("state:changed"); }
-                });
-            }
+    let action = item.dataset.action;
+
+    // ---------------------- ВЫРАВНИВАНИЕ ----------------------
+    if (action === 'align-left' || action === 'align-right' || action === 'align-top' || action === 'align-bottom' ||
+        action === 'align-center-h' || action === 'align-center-v') {
+        const alignMenu = document.getElementById('alignMenu');
+        const mainBlockId = alignMenu ? alignMenu.dataset.mainBlockId : null;
+        alignBlocks(action, mainBlockId);
+        this.cm.classList.remove("open");
+        return;
+    }
+
+    // ---------------------- МАССОВАЯ БЛОКИРОВКА ----------------------
+    if (action === "lock") {
+    const selectedIds = state.getSelectedIds();
+    if (selectedIds.length === 0) return;
+    // Определяем, все ли блоки заблокированы
+    const allLocked = selectedIds.every(id => state.getBlock(id)?.isLocked === true);
+    const newLockState = !allLocked;
+    // Сохраняем старые состояния для каждого блока
+    const oldStates = selectedIds.map(id => ({ id, wasLocked: state.getBlock(id)?.isLocked }));
+    // Применяем новое состояние
+    selectedIds.forEach(id => state.lockBlock(id, newLockState));
+    // Запись в историю (сохраняем ids и oldStates)
+    history.push({
+        type: "mass-lock",
+        ids: [...selectedIds],
+        oldStates: oldStates,
+        newLockState: newLockState,
+        undo: function() {
+            this.ids.forEach(id => {
+                const old = this.oldStates.find(s => s.id === id);
+                if (old) state.lockBlock(id, old.wasLocked);
+            });
+            events.emit("state:changed");
+        },
+        redo: function() {
+            this.ids.forEach(id => state.lockBlock(id, this.newLockState));
+            events.emit("state:changed");
+        }
+    });
+    events.emit("state:changed");
+    showToast(newLockState ? "Блоки заблокированы" : "Блоки разблокированы", "info");
+    this.cm.classList.remove("open");
+    return;
+}
+
+    // ---------------------- ОСТАЛЬНЫЕ ДЕЙСТВИЯ (для одного блока) ----------------------
+    let selectedId = [...state.state.selectedIds][0];
+    if (!selectedId) return;
+
+    if (action === "edit") {
+        openEditModal(selectedId);
+    } else if (action === "duplicate") {
+        duplicateSelected();
+    } else if (action === "delete") {
+        deleteSelected();
+    } else if (action === "front") {
+        let block = state.getBlock(selectedId);
+        if (block) {
+            let oldIndex = state.state.blocks.indexOf(block);
+            state.bringToFront(selectedId);
+            history.push({
+                type: "order", blockId: selectedId, oldIndex: oldIndex, newIndex: state.state.blocks.length - 1,
+                undo: () => { let b = state.state.blocks.splice(state.state.blocks.length - 1, 1)[0]; state.state.blocks.splice(oldIndex, 0, b); events.emit("state:changed"); },
+                redo: () => { let b = state.state.blocks.splice(oldIndex, 1)[0]; state.state.blocks.push(b); events.emit("state:changed"); }
+            });
+        }
+    } else if (action === "back") {
+        let block = state.getBlock(selectedId);
+        if (block) {
+            let oldIndex = state.state.blocks.indexOf(block);
+            state.sendToBack(selectedId);
+            history.push({
+                type: "order", blockId: selectedId, oldIndex: oldIndex, newIndex: 0,
+                undo: () => { let b = state.state.blocks.shift(); state.state.blocks.splice(oldIndex, 0, b); events.emit("state:changed"); },
+                redo: () => { let b = state.state.blocks.splice(oldIndex, 1)[0]; state.state.blocks.unshift(b); events.emit("state:changed"); }
+            });
         }
     }
+
     this.cm.classList.remove("open");
-}); document.getElementById("connContextMenu").addEventListener("click", e => {
+});
+		 document.getElementById("connContextMenu").addEventListener("click", e => {
             let t = e.target.closest(".ctx-item");
             if (!t) return;
             let n = t.dataset.action,
