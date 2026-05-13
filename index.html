@@ -982,18 +982,18 @@ const history = new class {
 const HistoryActions = {
     // Перемещение блоков (массив изменений)
     move(blocksData) {
-        return {
-            type: "move",
-            undo: () => {
-                blocksData.forEach(d => state.updateBlockPosition(d.id, d.oldX, d.oldY));
-                events.emit("state:changed");
-            },
-            redo: () => {
-                blocksData.forEach(d => state.updateBlockPosition(d.id, d.newX, d.newY));
-                events.emit("state:changed");
-            }
-        };
-    },
+    return {
+        type: "move",
+        undo: () => {
+            blocksData.forEach(d => state.updateBlockPosition(d.blockId, d.ox, d.oy));
+            events.emit("state:changed");
+        },
+        redo: () => {
+            blocksData.forEach(d => state.updateBlockPosition(d.blockId, d.nx, d.ny));
+            events.emit("state:changed");
+        }
+    };
+},
 
     // Изменение размера блока
     resize(blockId, oldWidth, oldHeight, newWidth, newHeight, oldItemsPos, newItemsPos) {
@@ -1687,11 +1687,7 @@ if (!isBlockLocked) this.initDrag(e, n, i);
             if (isItemOverlapWithOthers(o, i, i.x, i.y)) return i.x = c, i.y = d, void(h && (h.style.left = c + "px", h.style.top = d + "px"));
             if (i.x !== c || i.y !== d) {
                 let e = i.x, t = i.y;
-                history.push({
-                    type: "item-move",
-                    undo: () => state.updateItem(o.id, r, { x: c, y: d }),
-                    redo: () => state.updateItem(o.id, r, { x: e, y: t })
-                })
+                history.push(HistoryActions.itemMove(o.id, r, c, d, e, t));
             }
             this.renderConnections(), events.emit("state:changed")
         };
@@ -1774,15 +1770,8 @@ if (!isBlockLocked) this.initDrag(e, n, i);
                         nx: n.x,
                         ny: n.y
                     })
-                }), e.length && history.push({
-                    type: "move",
-                    undo() {
-                        e.forEach(e => state.updateBlockPosition(e.blockId, e.ox, e.oy)), events.emit("state:changed")
-                    },
-                    redo() {
-                        e.forEach(e => state.updateBlockPosition(e.blockId, e.nx, e.ny)), events.emit("state:changed")
-                    }
-                }), events.emit("state:changed")
+                }), e.length && history.push(HistoryActions.move(e));
+			events.emit("state:changed")
             };
         document.addEventListener("pointermove", u), document.addEventListener("pointerup", p)
     },
@@ -1819,27 +1808,7 @@ if (!isBlockLocked) this.initDrag(e, n, i);
                         t = o.height,
                         n = o.items.map(e => ({ x: e.x, y: e.y })),
                         i = o.id;
-                    history.push({
-                        type: "resize",
-                        undo() {
-                            let e = state.getBlock(i);
-                            if (!e) return;
-                            e.width = l, e.height = a, c.forEach((t, n) => {
-                                e.items[n] && (e.items[n].x = t.x, e.items[n].y = t.y)
-                            });
-                            let t = document.getElementById(i);
-                            t && (t.style.width = l + "px", t.style.height = a + "px", renderer.renderBlockItems(t, e.items, e.bgColor)), events.emit("state:changed")
-                        },
-                        redo() {
-                            let o = state.getBlock(i);
-                            if (!o) return;
-                            o.width = e, o.height = t, n.forEach((e, t) => {
-                                o.items[t] && (o.items[t].x = e.x, o.items[t].y = e.y)
-                            });
-                            let s = document.getElementById(i);
-                            s && (s.style.width = e + "px", s.style.height = t + "px", renderer.renderBlockItems(s, o.items, o.bgColor)), events.emit("state:changed")
-                        }
-                    })
+                    history.push(HistoryActions.resize(i,l,a,e,t,c,n));
                 }
                 this.renderConnections(), events.emit("state:changed")
             };
@@ -2096,25 +2065,7 @@ if (!isBlockLocked) this.initDrag(e, n, i);
         state.selectWaypoint(t, insIdx);
         events.emit("state:changed");
 
-        history.push({
-            type: "wp-add",
-            connId: t,
-            waypoint: newWp,
-            index: insIdx,
-            undo: () => {
-                let c = state.state.connections.find(c => c.id === t);
-                if (c && c.waypoints) c.waypoints.splice(insIdx, 1);
-                events.emit("state:changed");
-            },
-            redo: () => {
-                let c = state.state.connections.find(c => c.id === t);
-                if (c) {
-                    c.waypoints = c.waypoints || [];
-                    c.waypoints.splice(insIdx, 0, newWp);
-                }
-                events.emit("state:changed");
-            }
-        });
+        history.push(HistoryActions.waypointAdd(t, newWp, insIdx));
         showToast("Добавлена промежуточная точка", "info");
     },
 
@@ -2208,42 +2159,12 @@ if (!isBlockLocked) this.initDrag(e, n, i);
 
                 if (wasRelative) {
                     if (finalWp.t !== origT) {
-                        history.push({
-                            type: "wp-move-relative",
-                            connId, idx,
-                            oldT: origT,
-                            newT: finalWp.t,
-                            undo: () => {
-                                let c = state.state.connections.find(c => c.id === connId);
-                                if (c && c.waypoints[idx]) c.waypoints[idx].t = origT;
-                                events.emit("state:changed");
-                            },
-                            redo: () => {
-                                let c = state.state.connections.find(c => c.id === connId);
-                                if (c && c.waypoints[idx]) c.waypoints[idx].t = finalWp.t;
-                                events.emit("state:changed");
-                            }
-                        });
+                        history.push(HistoryActions.waypointMoveRelative(connId, idx, origT, finalWp.t));
                     }
                 } else {
                     if (finalWp.offsetX !== origOffX || finalWp.offsetY !== origOffY) {
                         let finalX = finalWp.offsetX, finalY = finalWp.offsetY;
-                        history.push({
-                            type: "wp-move",
-                            connId, idx,
-                            origOffX, origOffY,
-                            finalOffX: finalX, finalOffY: finalY,
-                            undo: () => {
-                                let c = state.state.connections.find(c => c.id === connId);
-                                if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = origOffX; c.waypoints[idx].offsetY = origOffY; }
-                                events.emit("state:changed");
-                            },
-                            redo: () => {
-                                let c = state.state.connections.find(c => c.id === connId);
-                                if (c && c.waypoints[idx]) { c.waypoints[idx].offsetX = finalX; c.waypoints[idx].offsetY = finalY; }
-                                events.emit("state:changed");
-                            }
-                        });
+                        history.push(HistoryActions.waypointMove(connId, idx, origOffX, origOffY, finalX, finalY));
                     }
                 }
                 events.emit("state:changed");
@@ -2286,50 +2207,43 @@ if (!isBlockLocked) this.initDrag(e, n, i);
     },
 
     setupLabelDrag: function() {
-        document.getElementById("guidesSvg").addEventListener("pointerdown", e => {
-            let t = e.target;
-            if (!t.classList.contains("label-drag-handle")) return;
-            e.stopPropagation(), e.preventDefault();
-            let n = t.dataset.connId,
-                o = state.state.connections.find(e => e.id === n);
-            if (!o) return;
-            let i = e.clientX,
-                s = e.clientY,
-                l = o.labelOffsetX || 0,
-                a = o.labelOffsetY || 0,
-                c = !0,
-                d = e => {
-                    if (!c) return;
-                    let t = (e.clientX - i) / state.state.zoom,
-                        d = (e.clientY - s) / state.state.zoom;
-                    o.labelOffsetX = l + t, o.labelOffsetY = a + d, renderer.renderConnections(), state.state.selectedConnectionId === n && N(o)
-                },
-                r = e => {
-                    if (c = !1, document.removeEventListener("pointermove", d), document.removeEventListener("pointerup", r), o.labelOffsetX !== l || o.labelOffsetY !== a) {
-                        let e = o.labelOffsetX,
-                            t = o.labelOffsetY,
-                            i = {
-                                type: "label-move",
-                                connId: n,
-                                origOffX: l,
-                                origOffY: a,
-                                finalOffX: e,
-                                finalOffY: t,
-                                undo: () => {
-                                    let e = state.state.connections.find(e => e.id === n);
-                                    e && (e.labelOffsetX = l, e.labelOffsetY = a), events.emit("state:changed")
-                                },
-                                redo: () => {
-                                    let o = state.state.connections.find(e => e.id === n);
-                                    o && (o.labelOffsetX = e, o.labelOffsetY = t), events.emit("state:changed")
-                                }
-                            };
-                        history.push(i)
-                    }
-                };
-            document.addEventListener("pointermove", d), document.addEventListener("pointerup", r)
-        })
-    },
+    document.getElementById("guidesSvg").addEventListener("pointerdown", e => {
+        let t = e.target;
+        if (!t.classList.contains("label-drag-handle")) return;
+        e.stopPropagation(), e.preventDefault();
+        let connId = t.dataset.connId,
+            conn = state.state.connections.find(c => c.id === connId);
+        if (!conn) return;
+        let startX = e.clientX,
+            startY = e.clientY,
+            origOffsetX = conn.labelOffsetX || 0,
+            origOffsetY = conn.labelOffsetY || 0,
+            active = true,
+            moveHandler = me => {
+                if (!active) return;
+                let dx = (me.clientX - startX) / state.state.zoom,
+                    dy = (me.clientY - startY) / state.state.zoom;
+                conn.labelOffsetX = origOffsetX + dx;
+                conn.labelOffsetY = origOffsetY + dy;
+                renderer.renderConnections();
+                if (state.state.selectedConnectionId === connId) N(conn);
+            },
+            upHandler = me => {
+                active = false;
+                document.removeEventListener("pointermove", moveHandler);
+                document.removeEventListener("pointerup", upHandler);
+                if (conn.labelOffsetX !== origOffsetX || conn.labelOffsetY !== origOffsetY) {
+                    history.push(HistoryActions.labelMove(
+                        connId,
+                        origOffsetX, origOffsetY,
+                        conn.labelOffsetX, conn.labelOffsetY
+                    ));
+                }
+            };
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
+    });
+},
 
     deleteSelectedConnection: function() {
         let e = state.state.selectedConnectionId;
@@ -2351,20 +2265,9 @@ if (!isBlockLocked) this.initDrag(e, n, i);
         if (!t || !t.waypoints || !t.waypoints[e.index]) return !1;
         let n = t.waypoints[e.index],
             o = e.index;
-        return t.waypoints.splice(o, 1), state.state.selectedWaypoint = null, events.emit("state:changed"), history.push({
-            type: "wp-del",
-            connId: e.connId,
-            waypoint: n,
-            index: o,
-            undo: () => {
-                let t = state.state.connections.find(t => t.id === e.connId);
-                t && (t.waypoints = t.waypoints || [], t.waypoints.splice(o, 0, n)), events.emit("state:changed")
-            },
-            redo: () => {
-                let t = state.state.connections.find(t => t.id === e.connId);
-                t && t.waypoints && t.waypoints.splice(o, 1), events.emit("state:changed")
-            }
-        }), showToast("Точка удалена", "info"), !0
+        return t.waypoints.splice(o, 1), state.state.selectedWaypoint = null, events.emit("state:changed"), 
+		history.push(HistoryActions.waypointRemove(e.connId, n, o));
+	showToast("Точка удалена", "info"), !0
     },
 
     // Этот метод нигде не используется, можно удалить, но оставлю для совместимости
@@ -2536,12 +2439,9 @@ if (!isBlockLocked) this.initDrag(e, n, i);
                         labelOffsetX: 0,
                         labelOffsetY: 0
                     };
-                state.addConnection(i), history.push({
-                    type: "conn-add",
-                    connId: e,
-                    undo: () => state.removeConnection(e),
-                    redo: () => state.addConnection(i)
-                }), showToast("Связь создана", "success")
+                state.addConnection(i), 
+				history.push(HistoryActions.connectionAdd(e, i)); 
+			showToast("Связь создана", "success")
             }
             t = null, n = null, o = null
         });
@@ -2643,21 +2543,8 @@ function X(e, t) {
     let o = state.state.connections.find(e => e.id === n);
     if (!o) return;
     let i = o[e];
-    o[e] = t, renderer.renderConnections(), N(o), history.push({
-        type: "conn-prop",
-        connId: n,
-        prop: e,
-        oldVal: i,
-        newVal: t,
-        undo: () => {
-            let t = state.state.connections.find(e => e.id === n);
-            t && (t[e] = i), events.emit("state:changed")
-        },
-        redo: () => {
-            let o = state.state.connections.find(e => e.id === n);
-            o && (o[e] = t), events.emit("state:changed")
-        }
-    })
+    o[e] = t, renderer.renderConnections(), N(o), 
+	history.push(HistoryActions.connectionProp(n, e, i, t));
 }
 
 function T(e, t) {
@@ -2672,30 +2559,7 @@ function T(e, t) {
     let oldStyle = JSON.parse(JSON.stringify(wp.style));
     wp.style[e] = t;
     if (JSON.stringify(oldStyle[e]) !== JSON.stringify(t)) {
-        history.push({
-            type: "wp-style",
-            connId: o,
-            wpIndex: i,
-            prop: e,
-            oldVal: oldStyle[e],
-            newVal: t,
-            undo: () => {
-                let conn = state.state.connections.find(c => c.id === o);
-                if (conn && conn.waypoints && conn.waypoints[i]) {
-                    conn.waypoints[i].style || (conn.waypoints[i].style = {});
-                    conn.waypoints[i].style[e] = oldStyle[e];
-                }
-                events.emit("state:changed");
-            },
-            redo: () => {
-                let conn = state.state.connections.find(c => c.id === o);
-                if (conn && conn.waypoints && conn.waypoints[i]) {
-                    conn.waypoints[i].style || (conn.waypoints[i].style = {});
-                    conn.waypoints[i].style[e] = t;
-                }
-                events.emit("state:changed");
-            }
-        });
+        history.push(HistoryActions.waypointStyle(o, i, e, oldStyle[e], t));
     }
     renderer.renderConnections();
     Y(wp, o, i);
@@ -2759,11 +2623,9 @@ function updateConnectionList() {
         let a = document.createElement("button");
         a.className = "unlink-btn", a.innerHTML = renderIconHTML("xmark"), a.title = "Отвязать", a.onclick = () => {
             let e = cloneConnection(t);
-            state.removeConnection(t.id), history.push({
-                type: "conn-del",
-                undo: () => state.addConnection(e),
-                redo: () => state.removeConnection(t.id)
-            }), updateConnectionList(), showToast("Связь удалена", "info")
+            state.removeConnection(t.id), 
+			history.push(HistoryActions.connectionRemove(e, n)); 
+		updateConnectionList(), showToast("Связь удалена", "info")
         }, s.appendChild(a), connectionList.appendChild(s)
     })
 }
@@ -2931,23 +2793,7 @@ function alignBlocks(type, mainBlockId = null) {
     blocks.forEach(b => renderer._onMoving({ id: b.id, x: b.x, y: b.y }));
 
     const newPositions = blocks.map(b => ({ id: b.id, x: b.x, y: b.y }));
-    history.push({
-        type: 'align',
-        undo: () => {
-            oldPositions.forEach(p => {
-                const block = state.getBlock(p.id);
-                if (block) { block.x = p.x; block.y = p.y; renderer._onMoving({ id: p.id, x: p.x, y: p.y }); }
-            });
-            events.emit('state:changed');
-        },
-        redo: () => {
-            newPositions.forEach(p => {
-                const block = state.getBlock(p.id);
-                if (block) { block.x = p.x; block.y = p.y; renderer._onMoving({ id: p.id, x: p.x, y: p.y }); }
-            });
-            events.emit('state:changed');
-        }
-    });
+    history.push(HistoryActions.align({ oldPositions, newPositions }));
 
     events.emit('state:changed');
     showToast(`Выравнивание: ${type.replace('align-','')}`, 'info');
@@ -2962,21 +2808,8 @@ function deleteSelected() {
         let t = document.getElementById(e);
         t && (t.classList.add("block-deleting"), setTimeout(() => t.remove(), 200)), state.removeConnectionsForBlock(e)
     }),
-    state.state.blocks = state.state.blocks.filter(t => !e.includes(t.id)), state.clearSelection(), history.push({
-        type: "delete",
-        snapshot: t,
-        conns: n,
-        undo: () => {
-            n.forEach(e => state.state.connections.push(cloneConnection(e))), t.forEach(e => {
-                state.state.blocks = [...state.state.blocks, cloneBlock(e)], renderer.renderBlock(state.getBlock(e.id))
-            }), events.emit("state:changed")
-        },
-        redo: () => {
-            n.forEach(e => state.state.connections = state.state.connections.filter(t => t.id !== e.id)), t.forEach(e => {
-                document.getElementById(e.id)?.remove(), state.state.blocks = state.state.blocks.filter(t => t.id !== e.id), state.removeConnectionsForBlock(e.id)
-            }), state.clearSelection(), events.emit("state:changed")
-        }
-    });
+    state.state.blocks = state.state.blocks.filter(t => !e.includes(t.id)), state.clearSelection(), 
+	history.push(HistoryActions.delete(t, n));
     let o = document.getElementById("toastContainer"),
         i = document.createElement("div");
     i.className = "toast toast-error", i.innerHTML = renderIconHTML("trash") + " Удалено: " + t.length + ' <button style="margin-left:12px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600">Отменить</button>', i.querySelector("button").onclick = () => {
@@ -2997,18 +2830,9 @@ function duplicateSelected() {
             s = findFreePosition(o.width, o.height),
             l = { ...cloneBlock(o), id: i, x: s.x, y: s.y };
         t.push(l), state.addBlock(l)
-    }), state.selectBlock(null), t.forEach(e => state.selectBlock(e.id, !0)), history.push({
-        type: "duplicate",
-        newIds: t.map(e => e.id),
-        undo: () => {
-            t.forEach(e => {
-                document.getElementById(e.id)?.remove(), state.state.blocks = state.state.blocks.filter(t => t.id !== e.id)
-            }), state.selectBlock(null), n.forEach(e => state.selectBlock(e.id, !0)), events.emit("state:changed")
-        },
-        redo: () => {
-            t.forEach(e => state.addBlock(e)), state.selectBlock(null), t.forEach(e => state.selectBlock(e.id, !0))
-        }
-    }), showToast("Дублировано: " + t.length, "info")
+    }), state.selectBlock(null), t.forEach(e => state.selectBlock(e.id, !0)), 
+	history.push(HistoryActions.duplicate(t.map(e => e.id), n));
+	showToast("Дублировано: " + t.length, "info")
 }
 
 function findFreePosition(e, t) {
@@ -3070,14 +2894,9 @@ function addTemplate(e) {
     };
     state.addBlock(a), state.selectBlock(i), setTimeout(() => {
         workspace.scrollLeft = Math.max(0, a.x * state.state.zoom - workspace.clientWidth / 2 + a.width * state.state.zoom / 2), workspace.scrollTop = Math.max(0, a.y * state.state.zoom - workspace.clientHeight / 2 + a.height * state.state.zoom / 2)
-    }, 50), history.push({
-        type: "create",
-        blockId: i,
-        undo: () => {
-            state.state.blocks = state.state.blocks.filter(e => e.id !== i), document.getElementById(i)?.remove(), state.clearSelection(), events.emit("state:changed")
-        },
-        redo: () => { state.addBlock(a), state.selectBlock(i) }
-    }), showToast("Шаблон «" + e.name + "» добавлен", "success")
+    }, 50), 
+	history.push(HistoryActions.create(i, a));
+	showToast("Шаблон «" + e.name + "» добавлен", "success")
 }
 
 function loadFromJSON(e, t) {
@@ -3672,23 +3491,7 @@ interaction = new class {
     // Применяем новое состояние
     selectedIds.forEach(id => state.lockBlock(id, newLockState));
     // Запись в историю (сохраняем ids и oldStates)
-    history.push({
-        type: "mass-lock",
-        ids: [...selectedIds],
-        oldStates: oldStates,
-        newLockState: newLockState,
-        undo: function() {
-            this.ids.forEach(id => {
-                const old = this.oldStates.find(s => s.id === id);
-                if (old) state.lockBlock(id, old.wasLocked);
-            });
-            events.emit("state:changed");
-        },
-        redo: function() {
-            this.ids.forEach(id => state.lockBlock(id, this.newLockState));
-            events.emit("state:changed");
-        }
-    });
+    history.push(HistoryActions.massLock([...selectedIds], oldStates, newLockState));
     events.emit("state:changed");
     showToast(newLockState ? "Блоки заблокированы" : "Блоки разблокированы", "info");
     this.cm.classList.remove("open");
@@ -3710,11 +3513,7 @@ interaction = new class {
         if (block) {
             let oldIndex = state.state.blocks.indexOf(block);
             state.bringToFront(selectedId);
-            history.push({
-                type: "order", blockId: selectedId, oldIndex: oldIndex, newIndex: state.state.blocks.length - 1,
-                undo: () => { let b = state.state.blocks.splice(state.state.blocks.length - 1, 1)[0]; state.state.blocks.splice(oldIndex, 0, b); events.emit("state:changed"); },
-                redo: () => { let b = state.state.blocks.splice(oldIndex, 1)[0]; state.state.blocks.push(b); events.emit("state:changed"); }
-            });
+            history.push(HistoryActions.order(o, oldIndex, newIndex));
         }
     } else if (action === "back") {
         let block = state.getBlock(selectedId);
@@ -3772,11 +3571,9 @@ interaction = new class {
                     if (!o) return;
                     let s = o.x, l = o.y;
                     "ArrowLeft" === e.key && (s -= n), "ArrowRight" === e.key && (s += n), "ArrowUp" === e.key && (l -= n), "ArrowDown" === e.key && (l += n), i.push({ blockId: t, ox: o.x, oy: o.y, nx: s, ny: l }), state.updateBlockPosition(t, s, l)
-                }), history.push({
-                    type: "arrow",
-                    undo() { i.forEach(e => state.updateBlockPosition(e.blockId, e.ox, e.oy)), events.emit("state:changed") },
-                    redo() { i.forEach(e => state.updateBlockPosition(e.blockId, e.nx, e.ny)), events.emit("state:changed") }
-                }), void events.emit("state:changed")
+                }), 
+				history.push(HistoryActions.arrow(i));
+			void events.emit("state:changed")
             }
             "Delete" !== e.key && "Backspace" !== e.key || !n || s ? "Delete" !== e.key && "Backspace" !== e.key || !o || n || s ? ("Delete" !== e.key && "Backspace" !== e.key || !i || s || !renderer.deleteSelectedWaypoint()) && ("Enter" !== e.key || !n || 1 !== state.state.selectedIds.size || s ? "Escape" !== e.key ? e.ctrlKey && "KeyA" === e.code && !s && (e.preventDefault(), state.state.selectedIds = new Set(state.state.blocks.map(e => e.id)), events.emit("selection:changed", state.state.selectedIds)) : state.clearSelection() : openEditModal([...state.state.selectedIds][0])) : renderer.deleteSelectedConnection() : deleteSelected()
         })
