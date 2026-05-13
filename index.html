@@ -1772,86 +1772,146 @@ if (!isBlockLocked) this.initDrag(e, n, i);
         document.addEventListener("pointermove", y), document.addEventListener("pointerup", k)
     },
 
-    initDrag(e, t, n) {
-        let o = e.clientX,
-            i = e.clientY,
-            s = n.x,
-            l = n.y,
-            a = state.getSelectedIds(),
-            c = new Map;
-        a.forEach(e => {
-            let t = state.getBlock(e);
-            t && c.set(e, { ox: t.x, oy: t.y })
-        }), t.classList.add("dragging");
-        let d = o,
-            r = i,
-            h = null,
-            m = () => {
-                let e = Math.max(0, s + (d - o) / state.state.zoom),
-                    t = Math.max(0, l + (r - i) / state.state.zoom),
-                    h = function(e, t, n, o, i) {
-                        let s = null,
-                            l = null;
-                        state.state.blocks.forEach(a => {
-                            if (a.id === e.id || o.includes(a.id)) return;
-                            let c = a.x + a.width / 2,
-                                d = a.y + a.height / 2,
-                                r = t + e.width / 2,
-                                h = n + e.height / 2,
-                                m = (e, t) => {
-                                    let n = e - t;
-                                    Math.abs(n) < i && (!s || Math.abs(n) < Math.abs(s.diff)) && (s = { diff: n, val: t })
-                                },
-                                u = (e, t) => {
-                                    let n = e - t;
-                                    Math.abs(n) < i && (!l || Math.abs(n) < Math.abs(l.diff)) && (l = { diff: n, val: t })
-                                };
-                            m(t, a.x), m(t + e.width, a.x + a.width), m(r, c), u(n, a.y), u(n + e.height, a.y + a.height), u(h, d)
-                        }), null !== s ? t -= s.diff : state.state.snapToGrid && (t = snapToGrid(Math.max(0, t)));
-                        null !== l ? n -= l.diff : state.state.snapToGrid && (n = snapToGrid(Math.max(0, n)));
-                        let a = null,
-                            c = null;
-                        null !== s && (a = { val: s.val, y1: Math.min(n, e.y), y2: Math.max(n + e.height, e.y + e.height) });
-                        null !== l && (c = { val: l.val, x1: Math.min(t, e.x), x2: Math.max(t + e.width, e.x + e.width) });
-                        return { nx: t, ny: n, guideX: a, guideY: c }
-                    }(n, e, t, a, 5);
-                e = h.nx, t = h.ny, zoomController && zoomController.drawGuides(h.guideX, h.guideY),
-                state.updateBlockPosition(n.id, e, t);
-                let m = e - s,
-                    u = t - l;
-                a.forEach(e => {
-                    if (e === n.id) return;
-                    let t = state.getBlock(e),
-                        o = c.get(e);
-                    if (t && o) {
-                        let t = o.ox + m,
-                            n = o.oy + u;
-                        state.state.snapToGrid && (t = snapToGrid(t), n = snapToGrid(n)), state.updateBlockPosition(e, t, n)
+        initDrag(e, t, n) {
+        let startX = e.clientX,
+            startY = e.clientY,
+            startBlockX = n.x,
+            startBlockY = n.y,
+            selectedIds = state.getSelectedIds(),
+            originalPositions = new Map();
+
+        selectedIds.forEach(id => {
+            let block = state.getBlock(id);
+            if (block) originalPositions.set(id, { ox: block.x, oy: block.y });
+        });
+
+        t.classList.add("dragging");
+        let currentX = startX,
+            currentY = startY,
+            rafId = null;
+
+        // Функция обновления позиций с привязкой и направляющими
+        const updatePositions = () => {
+            let newX = Math.max(0, startBlockX + (currentX - startX) / state.state.zoom);
+            let newY = Math.max(0, startBlockY + (currentY - startY) / state.state.zoom);
+            let result = this._applySnapAndGuides(n, newX, newY, selectedIds, 5);
+            newX = result.nx;
+            newY = result.ny;
+            if (zoomController) zoomController.drawGuides(result.guideX, result.guideY);
+
+            state.updateBlockPosition(n.id, newX, newY);
+            let dx = newX - startBlockX;
+            let dy = newY - startBlockY;
+            selectedIds.forEach(id => {
+                if (id === n.id) return;
+                let block = state.getBlock(id);
+                let orig = originalPositions.get(id);
+                if (block && orig) {
+                    let nx = orig.ox + dx;
+                    let ny = orig.oy + dy;
+                    if (state.state.snapToGrid) {
+                        nx = snapToGrid(nx);
+                        ny = snapToGrid(ny);
                     }
-                })
-            },
-            u = e => {
-                d = e.clientX, r = e.clientY, h || (h = requestAnimationFrame(() => {
-                    m(), h = null
-                }))
-            },
-            p = () => {
-                t.classList.remove("dragging"), zoomController && zoomController.clearGuides(), h && cancelAnimationFrame(h), document.removeEventListener("pointermove", u), document.removeEventListener("pointerup", p);
-                let e = [];
-                a.forEach(t => {
-                    let n = state.getBlock(t),
-                        o = c.get(t);
-                    n && o && (n.x !== o.ox || n.y !== o.oy) && e.push({
-                        blockId: t,
-                        ox: o.ox,
-                        oy: o.oy,
-                        nx: n.x,
-                        ny: n.y
-                    })
-                }), e.length && history.push(HistoryActions.move(e));
-			events.emit("state:changed")
-            };
-        document.addEventListener("pointermove", u), document.addEventListener("pointerup", p)
+                    state.updateBlockPosition(id, nx, ny);
+                }
+            });
+        };
+
+        const moveHandler = (me) => {
+            currentX = me.clientX;
+            currentY = me.clientY;
+            if (!rafId) {
+                rafId = requestAnimationFrame(() => {
+                    updatePositions();
+                    rafId = null;
+                });
+            }
+        };
+
+        const upHandler = () => {
+            t.classList.remove("dragging");
+            if (zoomController) zoomController.clearGuides();
+            if (rafId) cancelAnimationFrame(rafId);
+            document.removeEventListener("pointermove", moveHandler);
+            document.removeEventListener("pointerup", upHandler);
+
+            let changes = [];
+            selectedIds.forEach(id => {
+                let block = state.getBlock(id);
+                let orig = originalPositions.get(id);
+                if (block && orig && (block.x !== orig.ox || block.y !== orig.oy)) {
+                    changes.push({
+                        blockId: id,
+                        ox: orig.ox,
+                        oy: orig.oy,
+                        nx: block.x,
+                        ny: block.y
+                    });
+                }
+            });
+            if (changes.length) history.push(HistoryActions.move(changes));
+            events.emit("state:changed");
+        };
+
+        document.addEventListener("pointermove", moveHandler);
+        document.addEventListener("pointerup", upHandler);
+    },
+
+    // Вспомогательный метод для привязки и направляющих
+    _applySnapAndGuides: function(block, targetX, targetY, ignoreIds, threshold) {
+        let snapX = targetX, snapY = targetY;
+        let guideX = null, guideY = null;
+        state.state.blocks.forEach(other => {
+            if (other.id === block.id || ignoreIds.includes(other.id)) return;
+            let centerX = other.x + other.width / 2;
+            let centerY = other.y + other.height / 2;
+            let blockCenterX = targetX + block.width / 2;
+            let blockCenterY = targetY + block.height / 2;
+
+            // Горизонтальная привязка
+            let candidatesX = [other.x, other.x + other.width, centerX];
+            for (let cand of candidatesX) {
+                let diff = targetX - cand;
+                if (Math.abs(diff) < threshold && (!guideX || Math.abs(diff) < Math.abs(guideX.diff))) {
+                    guideX = { diff: diff, val: cand };
+                }
+                diff = (targetX + block.width) - cand;
+                if (Math.abs(diff) < threshold && (!guideX || Math.abs(diff) < Math.abs(guideX.diff))) {
+                    guideX = { diff: diff, val: cand };
+                }
+                diff = blockCenterX - cand;
+                if (Math.abs(diff) < threshold && (!guideX || Math.abs(diff) < Math.abs(guideX.diff))) {
+                    guideX = { diff: diff, val: cand };
+                }
+            }
+            // Вертикальная привязка
+            let candidatesY = [other.y, other.y + other.height, centerY];
+            for (let cand of candidatesY) {
+                let diff = targetY - cand;
+                if (Math.abs(diff) < threshold && (!guideY || Math.abs(diff) < Math.abs(guideY.diff))) {
+                    guideY = { diff: diff, val: cand };
+                }
+                diff = (targetY + block.height) - cand;
+                if (Math.abs(diff) < threshold && (!guideY || Math.abs(diff) < Math.abs(guideY.diff))) {
+                    guideY = { diff: diff, val: cand };
+                }
+                diff = blockCenterY - cand;
+                if (Math.abs(diff) < threshold && (!guideY || Math.abs(diff) < Math.abs(guideY.diff))) {
+                    guideY = { diff: diff, val: cand };
+                }
+            }
+        });
+
+        if (guideX) targetX -= guideX.diff;
+        else if (state.state.snapToGrid) targetX = snapToGrid(Math.max(0, targetX));
+        if (guideY) targetY -= guideY.diff;
+        else if (state.state.snapToGrid) targetY = snapToGrid(Math.max(0, targetY));
+
+        // Преобразуем направляющие в формат для отрисовки
+        let drawGuideX = guideX ? { val: guideX.val, y1: Math.min(targetY, block.y), y2: Math.max(targetY + block.height, block.y + block.height) } : null;
+        let drawGuideY = guideY ? { val: guideY.val, x1: Math.min(targetX, block.x), x2: Math.max(targetX + block.width, block.x + block.width) } : null;
+        return { nx: targetX, ny: targetY, guideX: drawGuideX, guideY: drawGuideY };
     },
 
     initResize(e, t, o) {
