@@ -33,7 +33,19 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 
 .toolbar{height:64px;background:#0f1012;border-bottom:1px solid #1e2028;display:flex;align-items:center;padding:0 20px;gap:4px;z-index:var(--z-toolbar);position:relative}
 .toolbar-brand{margin-right:10px;display:flex;align-items:center;gap:9px}
-.templates-wrapper{position:relative}
+.templates-wrapper {
+  position: relative;
+}
+.templates-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 14px;          /* перекроет зазор до меню (было 54px, кнопка ~40px) */
+  background: transparent;
+  pointer-events: auto;
+}
 .spacer{flex:1}
 .toolbar-info{font-size:12px;color:var(--muted)}
 
@@ -213,7 +225,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .inline-icon{display:inline-flex;width:1.05em;height:1.05em;align-items:center;justify-content:center}
 .inline-icon svg{width:100%;height:100%}
 
-#templatesMenu{position:absolute;top:64px;left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;min-width:200px;display:none;z-index:var(--z-context-menu);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+#templatesMenu{position:absolute;top:40px;left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;min-width:200px;display:none;z-index:var(--z-context-menu);box-shadow:0 12px 40px rgba(0,0,0,.5)}
 #templatesMenu.open{display:block}
 .template-option{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;cursor:pointer;color:var(--fg);font-size:13px;border:none;background:none;width:100%;font-family:inherit;text-align:left;transition:background .15s var(--easing)}
 .template-option:hover{background:rgba(232,160,48,.12)}
@@ -333,7 +345,11 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   pointer-events: auto;
   white-space: nowrap;
 }
-#btnDuplicate, #btnEdit, #btnDelete, #btnUndo, #btnRedo { position:relative; top:10px; }
+#btnDuplicate, #btnEdit, #btnDelete, #btnUndo, #btnRedo {
+  position: relative;
+  top: 7px;
+  min-width: 50px;
+}
 #toolbar-logo-badge:hover .about-tooltip {
   display: block;
 }
@@ -356,10 +372,23 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   list-style: none;
   padding: 0;
   font-size: 13px;
-  line-height: 1.8;
+  line-height: 2.0;
 }
 .about-tooltip ul li {
   white-space: nowrap;
+}
+
+.about-tooltip kbd {
+  display: inline-block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 4px;
 }
 
 .about-icon .inline-icon {
@@ -398,6 +427,14 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     width: 16px;
     height: 16px;
 }
+.about-credit {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  color: #ffffff;
+  opacity: 0.7;
+}
 </style>
 </head>
 <body>
@@ -406,21 +443,25 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div id="toolbar-logo-badge">
   <span class="drm-icon-slot" data-icon="cubes"></span>
   <div class="about-tooltip">
+  <div class="about-credit">by dreamkin</div>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
     <span class="drm-icon-slot" data-icon="cubes" style="background:linear-gradient(135deg,#f59e0b,#c4872a);width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:#0c0c0c;"></span>
     <h3 style="margin:0;">drmTopoHelper</h3>
   </div>
   <div class="version" id="aboutVersion"></div>
+  <h4>Горячие клавиши</h4>
   <ul>
     <li><kbd>Ctrl+Z</kbd> Отменить</li>
     <li><kbd>Ctrl+Y</kbd> Повторить</li>
     <li><kbd>Ctrl+D</kbd> Дублировать</li>
-    <li><kbd>Delete/Backspace</kbd> Удалить выбранное</li>
+    <li><kbd>Ctrl+Q</kbd> или <kbd>Enter</kbd> Редактировать</li>
+    <li><kbd>Delete</kbd> / <kbd>Backspace</kbd> Удалить выбранное</li>
     <li><kbd>Shift+клик</kbd> Множественный выбор</li>
     <li><kbd>Alt</kbd> Перемещение заблокированного блока</li>
     <li><kbd>Стрелки</kbd> Перемещение выделенных блоков</li>
     <li><kbd>Ctrl+A</kbd> Выделить все блоки</li>
-    <li><kbd>Ctrl+C/V/X</kbd> Копировать/вставить/вырезать</li>
+    <li><kbd>Ctrl+C</kbd> / <kbd>V</kbd> / <kbd>X</kbd> Копировать/вставить/вырезать</li>
+    <li><kbd>Escape</kbd> Снять выделение</li>
   </ul>
 </div>
 </div>
@@ -428,24 +469,24 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="divider"></div>
 
 <div class="size-selector" id="sizeSelector">
-<button class="size-option" data-size="small" data-tooltip="Малый блок">S</button>
-<button class="size-option" data-size="medium" data-tooltip="Средний блок">M</button>
-<button class="size-option" data-size="large" data-tooltip="Большой блок">L</button>
+<button class="size-option" data-size="small" data-tooltip="Создать малый блок">S</button>
+<button class="size-option" data-size="medium" data-tooltip="Создать средний блок">M</button>
+<button class="size-option" data-size="large" data-tooltip="Создать большой блок">L</button>
 </div>
 
 <div class="templates-wrapper desktop-only">
-<button class="btn" id="btnTemplates" data-tooltip="Готовые блоки с оборудованием"><span class="drm-icon-slot" data-icon="layers"></span><span class="btn-text">Шаблоны</span></button>
+<button class="btn" id="btnTemplates"><span class="drm-icon-slot" data-icon="layers"></span><span class="btn-text">Шаблоны</span></button>
 <div id="templatesMenu"></div>
 </div>
 
-<button class="btn desktop-only" id="btnDuplicate" disabled data-tooltip="Дублировать — Ctrl+D"><span class="drm-icon-slot" data-icon="clone"></span><span class="btn-text"></span><kbd>Ctrl+D</kbd></button>
+<button class="btn desktop-only" id="btnDuplicate" disabled data-tooltip="Дублировать - Ctrl+D"><span class="drm-icon-slot" data-icon="clone"></span><span class="btn-text"></span><kbd>Ctrl+D</kbd></button>
 
-<button class="btn" id="btnEdit" disabled data-tooltip="Редактировать"><span class="drm-icon-slot" data-icon="pen"></span><span class="btn-text"></span></button>
-<button class="btn btn-danger" id="btnDelete" disabled data-tooltip="Удалить блок/связь"><span class="drm-icon-slot" data-icon="trash"></span><span class="btn-text"></span></button>
+<button class="btn" id="btnEdit" disabled data-tooltip="Редактировать - Ctrl+Q"><span class="drm-icon-slot" data-icon="pen"></span><kbd>Ctrl+Q</kbd></button>
+<button class="btn btn-danger" id="btnDelete" disabled data-tooltip="Удалить блок/связь - Delete"><span class="drm-icon-slot" data-icon="trash"></span><kbd>Delete</kbd></button>
 <div class="divider desktop-only"></div>
 
-<button class="btn desktop-only" id="btnUndo" disabled data-tooltip="Отменить — Ctrl+Z"><span class="drm-icon-slot" data-icon="undo"></span><span class="btn-text"></span><kbd>Ctrl+Z</kbd></button>
-<button class="btn desktop-only" id="btnRedo" disabled data-tooltip="Вернуть — Ctrl+Y"><span class="drm-icon-slot" data-icon="redo"></span><span class="btn-text"></span><kbd>Ctrl+Y</kbd></button>
+<button class="btn desktop-only" id="btnUndo" disabled data-tooltip="Отменить - Ctrl+Z"><span class="drm-icon-slot" data-icon="undo"></span><span class="btn-text"></span><kbd>Ctrl+Z</kbd></button>
+<button class="btn desktop-only" id="btnRedo" disabled data-tooltip="Вернуть - Ctrl+Y"><span class="drm-icon-slot" data-icon="redo"></span><span class="btn-text"></span><kbd>Ctrl+Y</kbd></button>
 <div class="divider"></div>
 
 <button class="btn btn-toggle active" id="btnGrid" data-tooltip="Убрать сетку на фоне (G)"><span class="btn-text">Фон</span><span class="drm-icon-slot" data-icon="grid"></span></button>
@@ -639,7 +680,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "0.999pre2";
+const APP_VERSION = "0.999pre3";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -3060,31 +3101,32 @@ function alignBlocks(type, mainBlockId = null) {
 }
 
 function addTemplate(e) {
-    let o = GRID_SIZE;
-    state.state.blocks.forEach(e => { o = Math.max(o, e.y + e.height + GRID_SIZE); });
-    let i = "block_" + (++state.state.blockIdCounter),
-        s = function(e, t) {
-            if (!e.length) return { width: 160, height: 100, positions: [] };
-            let o = calcItemHeight(e[0]),
-                i = e.length <= 2 ? e.length : e.length <= 4 ? 2 : 3,
-                s = i * BLOCK_ITEM_WIDTH + 10 * (i - 1),
-                l = Math.ceil(e.length / i),
-                a = l * o + 8 * (l - 1);
-            return {
-                width: Math.max(s + 16, 60),
-                height: Math.max(8 + (t ? 28 : 0) + a + 8, 100),
-                positions: e.map((e, t) => ({
-                    x: 8 + t % i * 86,
-                    y: 8 + Math.floor(t / i) * (o + 8)
-                }))
-            };
-        }(e.config.items, !!e.config.title),
-        l = JSON.parse(JSON.stringify(e.config.items));
+    let s = function(e, t) {
+        if (!e.length) return { width: 160, height: 100, positions: [] };
+        let o = calcItemHeight(e[0]),
+            i = e.length <= 2 ? e.length : e.length <= 4 ? 2 : 3,
+            s = i * BLOCK_ITEM_WIDTH + 10 * (i - 1),
+            l = Math.ceil(e.length / i),
+            a = l * o + 8 * (l - 1);
+        return {
+            width: Math.max(s + 16, 60),
+            height: Math.max(8 + (t ? 28 : 0) + a + 8, 100),
+            positions: e.map((e, t) => ({
+                x: 8 + t % i * 86,
+                y: 8 + Math.floor(t / i) * (o + 8)
+            }))
+        };
+    }(e.config.items, !!e.config.title);
+
+    let l = JSON.parse(JSON.stringify(e.config.items));
     l.forEach((e, t) => { s.positions[t] && (e.x = s.positions[t].x, e.y = s.positions[t].y); });
+
+    let pos = findFreePosition(s.width, s.height);
+    let i = "block_" + (++state.state.blockIdCounter);
     let a = {
         id: i,
-        x: GRID_SIZE,
-        y: o,
+        x: pos.x,
+        y: pos.y,
         width: s.width,
         height: s.height,
         bgColor: e.config.bgColor,
@@ -3602,6 +3644,14 @@ let interaction = new class {
             return;
         }
 
+        if (e.ctrlKey && e.code === "KeyQ") {
+            e.preventDefault();
+            if (selectedCount === 1) {
+                openEditModal([...state.state.selectedIds][0]);
+            }
+            return;
+        }
+
         // Escape — снять выделение
         if (e.key === "Escape") {
             state.clearSelection();
@@ -4086,7 +4136,6 @@ document.getElementById("btnDuplicate").addEventListener("click", duplicateSelec
 document.getElementById("btnSave").addEventListener("click", () => {
     if (!state.state.blocks.length) { showToast("Нечего сохранять", "error"); return; }
     let e = {
-        version: "0.998",
         timestamp: (new Date()).toISOString(),
         blockIdCounter: state.state.blockIdCounter,
         connectionIdCounter: state.state.connectionIdCounter,
@@ -4216,15 +4265,34 @@ document.getElementById("btnConnections").addEventListener("click", function() {
     templatesMenuEl.appendChild(t);
 });
 
-document.getElementById("btnTemplates").addEventListener("click", e => {
-    e.stopPropagation();
-    templatesMenuEl.classList.toggle("open");
-});
-document.addEventListener("click", e => {
-    if (!e.target.closest("#templatesMenu") && !e.target.closest("#btnTemplates")) {
-        templatesMenuEl.classList.remove("open");
-    }
-});
+const templatesWrapper = document.querySelector(".templates-wrapper");
+let templatesTimeout = null;
+
+if (templatesWrapper && templatesMenuEl) {
+    const showMenu = () => {
+        clearTimeout(templatesTimeout);
+        templatesMenuEl.classList.add("open");
+    };
+    const hideMenu = () => {
+        templatesTimeout = setTimeout(() => {
+            templatesMenuEl.classList.remove("open");
+        }, 10);
+    };
+
+    templatesWrapper.addEventListener("mouseenter", showMenu);
+    templatesWrapper.addEventListener("mouseleave", hideMenu);
+
+    // При входе в меню – отменяем таймер (но не вешаем mouseleave на меню)
+    templatesMenuEl.addEventListener("mouseenter", showMenu);
+
+    // Клик по шаблону – закрываем сразу
+    templatesMenuEl.addEventListener("click", (e) => {
+        if (e.target.closest(".template-option")) {
+            clearTimeout(templatesTimeout);
+            templatesMenuEl.classList.remove("open");
+        }
+    });
+}
 
 // Модальные окна
 editModal.addEventListener("click", e => {
