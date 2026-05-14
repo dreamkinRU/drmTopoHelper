@@ -545,6 +545,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="context-menu" id="contextMenu">
 <button class="ctx-item" data-action="edit"><span class="drm-icon-slot" data-icon="pen"></span>Редактировать</button>
 <button class="ctx-item" data-action="duplicate"><span class="drm-icon-slot" data-icon="clone"></span>Дублировать</button>
+<button class="ctx-item" data-action="save-template"><span class="drm-icon-slot" data-icon="download"></span>Сохранить как шаблон</button>
 <button class="ctx-item" data-action="lock"><span class="drm-icon-slot" data-icon="lock"></span>Заблокировать</button>
 <div class="ctx-divider"></div>
 <button class="ctx-item" data-action="front"><span class="drm-icon-slot" data-icon="layers"></span>На передний план</button>
@@ -3100,6 +3101,44 @@ function alignBlocks(type, mainBlockId = null) {
     showToast(`Выравнивание: ${type.replace('align-','')}`, 'info');
 }
 
+function saveBlockAsTemplate(block) {
+    const name = prompt("Название шаблона", block.title || "Мой шаблон");
+    if (!name || !name.trim()) return;
+    
+    // Определяем иконку шаблона — первая иконка элемента блока
+    const icon = (block.items && block.items.length > 0) ? normalizeIconKey(block.items[0].icon) : "cubes";
+    
+    // Создаём объект шаблона в том же формате, что и встроенные
+    const template = {
+        name: name.trim(),
+        icon: icon,
+        config: {
+            bgColor: block.bgColor,
+            title: block.title || name.trim(),
+            items: JSON.parse(JSON.stringify(block.items)).map(item => ({
+                ...item,
+                icon: normalizeIconKey(item.icon)
+            }))
+        }
+    };
+    
+    // Загружаем существующие пользовательские шаблоны
+    let userTemplates = [];
+    try {
+        const stored = localStorage.getItem("drmTopoHelper_userTemplates");
+        if (stored) userTemplates = JSON.parse(stored);
+    } catch(e) {
+        userTemplates = [];
+    }
+    
+    userTemplates.push(template);
+    localStorage.setItem("drmTopoHelper_userTemplates", JSON.stringify(userTemplates));
+    
+    // Обновляем меню шаблонов
+    populateTemplatesMenu();
+    showToast("Шаблон «" + template.name + "» сохранён", "success");
+}
+
 function addTemplate(e) {
     let s = function(e, t) {
         if (!e.length) return { width: 160, height: 100, positions: [] };
@@ -3802,6 +3841,7 @@ let interaction = new class {
                         delete alignMenu.dataset.mainBlockId;
                     }
                     updateLockButtonText();
+                    this.cm.dataset.blockId = blockId;
                     adjustMenuPosition(this.cm, e.clientX, e.clientY);
                     this.cm.classList.add("open");
                 }
@@ -3859,6 +3899,14 @@ let interaction = new class {
                         const newIndex = state.state.blocks.length - 1;
                         state.bringToFront(selectedId);
                         history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
+                    }
+                    break;
+                }
+                case "save-template": {
+                    const blockId = this.cm.dataset.blockId;
+                    if (blockId) {
+                        const block = state.getBlock(blockId);
+                        if (block) saveBlockAsTemplate(block);
                     }
                     break;
                 }
@@ -4244,26 +4292,100 @@ document.getElementById("btnConnections").addEventListener("click", function() {
     }
 });
 
-// Заполнение меню шаблонов
-[
-    { name: "РМ+Монитор", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }] } },
-    { name: "РМ+Монитор+ИБП", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор+ИБП", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }] } },
-    { name: "РМ+Монитор+ИПБ+cШК", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор+ИПБ+cШК", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }] } },
-    { name: "РМ+Монитор+ИПБ+cШК+пШК", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор+ИПБ+cШК+пШК", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }, { icon: "printer_shk", label: "Принтер ШК", invNum: "0" }] } },
-    { name: "РМ+Монитор", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }] } },
-    { name: "РМ+Монитор+ИБП", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор+ИБП", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }] } },
-    { name: "РМ+Монитор+ИПБ+cШК", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор+ИПБ+cШК", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }] } },
-    { name: "РМ+Монитор+ИПБ+cШК+пШК", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор+ИПБ+cШК+пШК", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }, { icon: "printer_shk", label: "Принтер ШК", invNum: "0" }] } }
-].forEach(e => {
-    let t = document.createElement("button");
-    t.className = "template-option";
-    t.innerHTML = renderIconHTML(e.icon) + "<span>" + e.name + "</span>";
-    t.addEventListener("click", () => {
-        addTemplate(e);
-        templatesMenuEl.classList.remove("open");
+function populateTemplatesMenu() {
+    // Очищаем меню
+    templatesMenuEl.innerHTML = "";
+
+    // Встроенные шаблоны
+    const builtinTemplates = [
+        { name: "РМ+Монитор", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }] } },
+        { name: "РМ+Монитор+ИБП", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор+ИБП", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }] } },
+        { name: "РМ+Монитор+ИПБ+cШК", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор+ИПБ+cШК", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }] } },
+        { name: "РМ+Монитор+ИПБ+cШК+пШК", icon: "windows", config: { bgColor: "#1f1f2d", title: "РМ+Монитор+ИПБ+cШК+пШК", items: [{ icon: "windows", label: "Windows ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }, { icon: "printer_shk", label: "Принтер ШК", invNum: "0" }] } },
+        { name: "РМ+Монитор", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }] } },
+        { name: "РМ+Монитор+ИБП", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор+ИБП", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }] } },
+        { name: "РМ+Монитор+ИПБ+cШК", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор+ИПБ+cШК", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }] } },
+        { name: "РМ+Монитор+ИПБ+cШК+пШК", icon: "linux", config: { bgColor: "#1f2d1f", title: "РМ+Монитор+ИПБ+cШК+пШК", items: [{ icon: "linux", label: "Linux ПК", invNum: "0" }, { icon: "desktop", label: "Монитор", invNum: "0" }, { icon: "ups", label: "ИБП", invNum: "0" }, { icon: "scanner_shk", label: "Сканер ШК", invNum: "0" }, { icon: "printer_shk", label: "Принтер ШК", invNum: "0" }] } }
+    ];
+
+    // Добавляем встроенные шаблоны
+    builtinTemplates.forEach(tpl => {
+        const btn = document.createElement("button");
+        btn.className = "template-option";
+        btn.innerHTML = renderIconHTML(tpl.icon) + "<span>" + tpl.name + "</span>";
+        btn.addEventListener("click", () => {
+            addTemplate(tpl);
+            templatesMenuEl.classList.remove("open");
+        });
+        templatesMenuEl.appendChild(btn);
     });
-    templatesMenuEl.appendChild(t);
-});
+
+    // Загружаем пользовательские шаблоны
+    let userTemplates = [];
+    try {
+        const stored = localStorage.getItem("drmTopoHelper_userTemplates");
+        if (stored) userTemplates = JSON.parse(stored);
+    } catch(e) {
+        userTemplates = [];
+    }
+
+    if (userTemplates.length > 0) {
+        // Разделитель
+        const divider = document.createElement("div");
+        divider.style.cssText = "height:1px;background:var(--border);margin:4px 8px";
+        templatesMenuEl.appendChild(divider);
+
+        userTemplates.forEach((tpl, index) => {
+            const wrapper = document.createElement("div");
+            wrapper.style.cssText = "display:flex;align-items:center;";
+
+            const btn = document.createElement("button");
+            btn.className = "template-option";
+            btn.style.flex = "1";
+            btn.innerHTML = renderIconHTML(tpl.icon) + "<span>" + tpl.name + "</span>";
+            btn.addEventListener("click", () => {
+                addTemplate(tpl);
+                templatesMenuEl.classList.remove("open");
+            });
+            wrapper.appendChild(btn);
+
+            // Кнопка удаления
+            const delBtn = document.createElement("button");
+            delBtn.className = "btn";
+            delBtn.style.cssText = "padding:2px 6px;margin-left:4px;color:var(--danger);background:transparent;border:none;cursor:pointer;font-size:14px;";
+            delBtn.innerHTML = "×";
+            delBtn.title = "Удалить шаблон";
+            delBtn.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                ev.preventDefault();
+                deleteUserTemplate(index);
+            });
+            wrapper.appendChild(delBtn);
+
+            templatesMenuEl.appendChild(wrapper);
+        });
+    }
+}
+
+function deleteUserTemplate(index) {
+    let userTemplates = [];
+    try {
+        const stored = localStorage.getItem("drmTopoHelper_userTemplates");
+        if (stored) userTemplates = JSON.parse(stored);
+    } catch(e) {
+        userTemplates = [];
+    }
+    if (index >= 0 && index < userTemplates.length) {
+        const name = userTemplates[index].name;
+        userTemplates.splice(index, 1);
+        localStorage.setItem("drmTopoHelper_userTemplates", JSON.stringify(userTemplates));
+        populateTemplatesMenu();
+        showToast("Шаблон «" + name + "» удалён", "info");
+    }
+};
+
+// Вызываем после определения
+populateTemplatesMenu();
 
 const templatesWrapper = document.querySelector(".templates-wrapper");
 let templatesTimeout = null;
