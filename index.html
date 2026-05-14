@@ -3499,7 +3499,7 @@ let zoomController = new class {
         this.clamp();
         this.updateMinimap();
     }
-    updateMinimap() {
+        updateMinimap() {
         let t = this.mc.getContext("2d");
         this.mc.width = 180; this.mc.height = 120;
         let n = 0, o = 0;
@@ -3519,12 +3519,27 @@ let zoomController = new class {
             }
         });
         t.setTransform(1, 0, 0, 1, 0, 0);
-        let s = this.ws.scrollLeft / state.state.zoom * i,
-            l = this.ws.scrollTop / state.state.zoom * i,
-            a = this.ws.clientWidth / state.state.zoom * i,
-            c = this.ws.clientHeight / state.state.zoom * i;
-        this.mv.style.left = 4 + s + "px";
-        this.mv.style.top = 4 + l + "px";
+
+        // Размеры миникарты (холст 180x120, бордер 4px)
+        const mmWidth = 180, mmHeight = 120;
+        const padding = 3;
+
+        // Позиция и размер viewport на холсте миникарты
+        let s = this.ws.scrollLeft / state.state.zoom * i;
+        let l = this.ws.scrollTop / state.state.zoom * i;
+        let a = this.ws.clientWidth / state.state.zoom * i;
+        let c = this.ws.clientHeight / state.state.zoom * i;
+
+        // Ограничиваем размеры viewport, чтобы не превышали размер миникарты
+        a = Math.min(a, mmWidth);
+        c = Math.min(c, mmHeight);
+
+        // Ограничиваем положение, чтобы viewport не выходил за границы
+        s = Math.max(0, Math.min(s, mmWidth - a));
+        l = Math.max(0, Math.min(l, mmHeight - c));
+
+        this.mv.style.left = padding + s + "px";
+        this.mv.style.top = padding + l + "px";
         this.mv.style.width = Math.max(8, a) + "px";
         this.mv.style.height = Math.max(8, c) + "px";
     }
