@@ -490,9 +490,155 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   color: var(--fg);
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 .wp-mini-popup button:hover {
   background: rgba(255,255,255,0.1);
+}
+
+#wpMiniShape {
+  border: none;
+  background: var(--bg);
+  padding: 3px;
+  border-radius: 4px;
+}
+#wpMiniShapeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.wp-shape-picker {
+  position: relative;
+  display: flex;
+}
+.wp-shape-size-grid {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 401;
+  box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  flex-direction: column;
+  gap: 4px;
+}
+.wp-shape-picker:hover .wp-shape-size-grid {
+  display: flex;
+}
+.wp-shape-size-row {
+  display: flex;
+  gap: 0;
+}
+
+.wp-shape-size-opt {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 4px;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wp-shape-size-opt:hover {
+  background: rgba(255,255,255,0.08) !important;
+}
+.wp-shape-size-opt.active {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.wp-shape-size-opt-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+/* Единый hover для всех опций: слегка осветляем фон кнопки */
+.wp-shape-size-opt:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+/* Активная опция: тонкая акцентная обводка, без изменения фона */
+.wp-shape-size-opt.active {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.wp-shape-size-opt-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+/* Пикер размера */
+.wp-size-picker {
+  position: relative;
+  display: flex;
+}
+.wp-size-icon {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid currentColor;
+}
+.wp-size-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 401;
+  box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  flex-direction: row;
+  gap: 4px;
+}
+.wp-size-picker:hover .wp-size-dropdown {
+  display: flex;
+}
+.wp-size-opt {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+.wp-size-opt:hover {
+  background: rgba(255,255,255,0.1);
+}
+.wp-size-opt.active {
+  border-color: var(--accent);
+}
+.wp-size-preview {
+  display: block;
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid currentColor;
 }
 </style>
 </head>
@@ -599,13 +745,24 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div id="sourcePort" class="port-dot"></div>
 <div id="targetPort" class="port-dot"></div>
 
+
 <div id="wpMiniPopup" class="wp-mini-popup" style="display:none;">
-  <input type="color" id="wpMiniColor" value="#e8a030">
-  <button id="wpMiniToggleMode" class="btn" title="Переключить режим">
-    <span class="drm-icon-slot" data-icon="pin"></span>
+  <input type="color" id="wpMiniColor" value="#e8a030" data-tooltip="Цвет точки">
+  <div class="wp-shape-picker">
+    <button id="wpMiniShape" data-tooltip="Форма и размер точки">
+      <span id="wpMiniShapeIcon"></span>
+    </button>
+    <div class="wp-shape-size-grid" id="wpShapeSizeGrid">
+      <!-- Ячейки заполняются динамически -->
+    </div>
+  </div>
+  <button id="wpMiniToggleMode" class="btn" data-tooltip="Переключить абсолютную/относительную точку">
+    <span class="drm-icon-slot" data-icon="anchor"></span>
+  </button>
+  <button id="wpMiniDelete" class="btn" data-tooltip="Удалить точку" style="color:var(--danger);">
+    <span class="drm-icon-slot" data-icon="xmark"></span>
   </button>
 </div>
-
 </div>
 </div>
 
@@ -779,7 +936,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "0.999pre10";
+const APP_VERSION = "1.0alpha1";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -830,6 +987,10 @@ const SVG_ICONS = {
   'align-bottom': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M12 19 L7 12 L17 12 Z" fill="#ffffff" stroke="#ffffff"/><path d="M8 8 L16 8" stroke="#ffffff"/><path d="M8 4 L16 4" stroke="#ffffff"/></svg>',
   'align-center-h': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><line x1="12" y1="3" x2="12" y2="21" stroke="#ffffff"/><line x1="5" y1="12" x2="19" y2="12" stroke="#4a4a56"/><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none"/></svg>',
   'align-center-v': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12" stroke="#ffffff"/><line x1="12" y1="5" x2="12" y2="19" stroke="#4a4a56"/><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none"/></svg>',
+  'circle-shape': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>',
+  'square-shape': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16"/></svg>',
+  'diamond-shape': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,12 12,22 2,12"/></svg>',
+  'triangle-shape': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,22 2,22"/></svg>',
   anchor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><path d="M12 8 L12 22 M8 14 L16 14"/></svg>',
   percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/><line x1="17" y1="7" x2="7" y2="17"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L12 22 M12 2 C10 2 8 4 8 7 C8 10 10 12 12 12 C14 12 16 10 16 7 C16 4 14 2 12 2 Z"/></svg>',
@@ -1134,7 +1295,8 @@ const state = (() => {
     connectionIdCounter: 0,
     selectedConnectionId: null,
     selectedWaypoint: null,
-    connectionMode: false
+    connectionMode: false,
+    frontBlockIds: new Set(),   // блоки, принудительно поднятые над связями
   };
 
   return {
@@ -1203,6 +1365,7 @@ const state = (() => {
       let n = [...stateObj.blocks];
       n.push(n.splice(t,1)[0]);
       stateObj.blocks = n;
+      stateObj.frontBlockIds.add(e);          // помечаем как передний
       events.emit("state:changed");
     },
     sendToBack(e) {
@@ -1211,6 +1374,7 @@ const state = (() => {
       let n = [...stateObj.blocks];
       n.unshift(n.splice(t,1)[0]);
       stateObj.blocks = n;
+      stateObj.frontBlockIds.delete(e);       // снимаем приоритет
       events.emit("state:changed");
     },
     addConnection(e) {
@@ -1779,7 +1943,12 @@ const renderer = (() => {
   function updateZIndices() {
     state.state.blocks.forEach((block, i) => {
       const el = document.getElementById(block.id);
-      if (el) el.style.zIndex = i + 2;
+      if (!el) return;
+      if (state.state.frontBlockIds.has(block.id)) {
+        el.style.zIndex = 250;                // выше соединений (guidesSvg z-index 100)
+      } else {
+        el.style.zIndex = i + 2;
+      }
     });
   }
 
@@ -1917,12 +2086,25 @@ const renderer = (() => {
   function _renderConnectionWaypoints(group, conn, absWaypoints, tempPath, totalLen) {
     const waypoints = conn.waypoints || [];
     absWaypoints.forEach((pt, idx) => {
-      if (!(state.state.selectedConnectionId === conn.id || (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id))) return;
-      const style = waypoints[idx].style || {};
+      if (!(state.state.selectedConnectionId === conn.id ||
+            (state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id))) return;
+
+      const wp = waypoints[idx];
+      if (!wp) return;
+      const style = wp.style || {};
+
+      // Определяем форму с умолчанием
+      let shape = style.shape;
+      if (shape === "none") return;  // скрытые точки пропускаем
+      if (!shape || !["circle","square","diamond","cross","triangle"].includes(shape)) {
+        shape = "circle";            // всё остальное считаем кругом
+      }
+
       const color = style.color || "#e8a030";
-      const shape = style.shape || "circle";
       const size = { small: 4, medium: 6, large: 8 }[style.size] || 6;
-      const isSelected = state.state.selectedWaypoint && state.state.selectedWaypoint.connId === conn.id && state.state.selectedWaypoint.index === idx;
+      const isSelected = state.state.selectedWaypoint &&
+                         state.state.selectedWaypoint.connId === conn.id &&
+                         state.state.selectedWaypoint.index === idx;
 
       let el;
       if (shape === "circle") {
@@ -1950,6 +2132,9 @@ const renderer = (() => {
         el = document.createElementNS(SVG_NS, "polygon");
         el.setAttribute("points", `${pt.x},${pt.y - size} ${pt.x + size},${pt.y + size} ${pt.x - size},${pt.y + size}`);
       }
+
+      if (!el) return;
+
       if (shape !== "cross") {
         el.setAttribute("fill", color);
         el.setAttribute("stroke", isSelected ? "#fff" : "var(--surface)");
@@ -1962,7 +2147,7 @@ const renderer = (() => {
       el.style.pointerEvents = "auto";
       group.appendChild(el);
     });
-  }
+}
 
   function _renderConnectionLabel(group, conn, tempPath, totalLen) {
     const midPt = tempPath.getPointAtLength(totalLen / 2);
@@ -2576,7 +2761,7 @@ function addWaypointFromEvent(e, connId) {
         }
     }
 
-    const newWaypoint = { t: bestT, style: {} };
+    const newWaypoint = { t: bestT, style: { shape: 'circle' } };
     const newWaypoints = [...waypoints];
     newWaypoints.splice(insertIdx, 0, newWaypoint);
     conn.waypoints = newWaypoints;
@@ -2854,26 +3039,103 @@ state.state.selectedIds.forEach(id => {
     hidePort,
     setupWaypointInteraction() {
     const miniPopup = document.getElementById("wpMiniPopup");
+    if (!miniPopup) return;
+
     const miniColor = document.getElementById("wpMiniColor");
     const miniToggle = document.getElementById("wpMiniToggleMode");
+    const miniShapeBtn = document.getElementById("wpMiniShape");
+    const shapeSizeGrid = document.getElementById("wpShapeSizeGrid");
+    const miniDelete = document.getElementById("wpMiniDelete");
+    const shapeIconSpan = document.getElementById("wpMiniShapeIcon");
     let currentWpConnId = null, currentWpIdx = null;
 
-    // Не даём кликам внутри мини‑модалки добираться до SVG и скрывать её
+    const shapes = ['circle', 'diamond', 'triangle'];
+    const sizes = ['small', 'medium', 'large'];
+    const sizeDims = { small: 6, medium: 10, large: 14 };
+
+    // Генерация SVG-иконки с заливкой и обводкой (размер в пикселях)
+    function makeShapeSVG(shape, color, sizePx) {
+        const s = sizePx || 14;
+        const stroke = "#1a1a1a";
+        let inner = "";
+        if (shape === "circle") {
+            inner = `<circle cx="12" cy="12" r="8" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`;
+        } else if (shape === "diamond") {
+            inner = `<polygon points="12,2 22,12 12,22 2,12" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`;
+        } else if (shape === "triangle") {
+            inner = `<polygon points="12,2 22,22 2,22" fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`;
+        }
+        return `<svg viewBox="0 0 24 24" width="${s}" height="${s}">${inner}</svg>`;
+    }
+
+    // Обновить иконку на главной кнопке (текущая форма + размер)
+    function updateMainIcon(shape, size, color) {
+        if (shapeIconSpan) {
+            const px = sizeDims[size] || 10;
+            shapeIconSpan.innerHTML = makeShapeSVG(shape, color, px);
+        }
+    }
+
+    // Построить сетку опций, исключая текущую комбинацию
+        function buildGrid(currentShape, currentSize, color) {
+        if (!shapeSizeGrid) return;
+        shapeSizeGrid.innerHTML = '';
+        shapes.forEach(shape => {
+            const row = document.createElement('div');
+            row.className = 'wp-shape-size-row';
+            sizes.forEach(size => {
+                const btn = document.createElement('button');
+                btn.className = 'wp-shape-size-opt';
+                btn.dataset.shape = shape;
+                btn.dataset.size = size;
+                if (shape === currentShape && size === currentSize) {
+                    btn.classList.add('active');
+                }
+                btn.setAttribute('data-tooltip',
+                    (shape === 'circle' ? 'Круг' : shape === 'diamond' ? 'Ромб' : 'Треугольник') +
+                    ' ' + (size === 'small' ? 'S' : size === 'medium' ? 'M' : 'L'));
+                const icon = document.createElement('span');
+                icon.className = 'wp-shape-size-opt-icon';
+                const px = sizeDims[size] || 10;
+                icon.innerHTML = makeShapeSVG(shape, color, px);
+                btn.appendChild(icon);
+                row.appendChild(btn);
+            });
+            shapeSizeGrid.appendChild(row);
+        });
+    }
+
+    // Блокируем всплытие
     miniPopup.addEventListener("pointerdown", e => e.stopPropagation());
     miniPopup.addEventListener("click", e => e.stopPropagation());
 
+    // Показать попап
     function showMiniPopup(ev, connId, idx) {
         const conn = state.state.connections.find(c => c.id === connId);
         if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
         const wp = conn.waypoints[idx];
         const style = wp.style || {};
-        miniColor.value = style.color || "#e8a030";
+        const color = style.color || "#e8a030";
+        const shape = style.shape || "circle";
+        const size = style.size || "medium";
         const isAbs = wp.offsetX !== undefined;
-        miniToggle.innerHTML = renderIconHTML(isAbs ? "anchor" : "percent");
-        miniToggle.title = isAbs ? "Абсолютная точка" : "Относительная точка";
+
+        if (miniColor) miniColor.value = color;
+        if (miniToggle) {
+            miniToggle.innerHTML = renderIconHTML(isAbs ? "anchor" : "percent");
+            miniToggle.title = isAbs ? "Абсолютная точка" : "Относительная точка";
+        }
+        updateMainIcon(shape, size, color);
+        buildGrid(shape, size, color);
 
         currentWpConnId = connId;
         currentWpIdx = idx;
+
+        const panel = document.getElementById("waypointPanel");
+        if (panel) {
+            panel.dataset.connId = connId;
+            panel.dataset.wpIndex = idx;
+        }
 
         const circle = ev.target.closest(".waypoint-circle");
         if (!circle) return;
@@ -2888,6 +3150,7 @@ state.state.selectedIds.forEach(id => {
         currentWpConnId = currentWpIdx = null;
     }
 
+    // Наведение на точку
     guidesSvg.addEventListener("pointermove", e => {
         const circle = e.target.closest(".waypoint-circle");
         if (!circle) return;
@@ -2896,7 +3159,7 @@ state.state.selectedIds.forEach(id => {
         showMiniPopup(e, connId, idx);
     });
 
-    // Скрываем попап только если курсор ушёл дальше 100px от центра попапа И не находится над самим попапом
+    // Скрытие при отдалении >100px
     document.addEventListener("pointermove", e => {
         if (miniPopup.style.display === "none") return;
         if (miniPopup.contains(e.target)) return;
@@ -2907,47 +3170,134 @@ state.state.selectedIds.forEach(id => {
         if (dist > 100) hideMiniPopup();
     });
 
-    // Цвет точки – прямая установка, без обращения к T и waypointPanel
-    miniColor.addEventListener("input", e => {
-        if (currentWpConnId == null || currentWpIdx == null) return;
-        const conn = state.state.connections.find(c => c.id === currentWpConnId);
-        if (!conn || !conn.waypoints || !conn.waypoints[currentWpIdx]) return;
-        const wp = conn.waypoints[currentWpIdx];
-        if (!wp.style) wp.style = {};
-        wp.style.color = e.target.value;
-        renderer.renderConnections();
-        events.emit("state:changed");
-        // Если большая панель открыта – обновить её через Y
-        if (document.getElementById("waypointPanel").classList.contains("open")) {
-            Y(wp, currentWpConnId, currentWpIdx);
-        }
-    });
+    // ---------- Цвет ----------
+    if (miniColor) {
+        miniColor.addEventListener("input", e => {
+            if (currentWpConnId == null || currentWpIdx == null) return;
+            const conn = state.state.connections.find(c => c.id === currentWpConnId);
+            if (!conn || !conn.waypoints || !conn.waypoints[currentWpIdx]) return;
+            const wp = conn.waypoints[currentWpIdx];
+            if (!wp.style) wp.style = {};
+            wp.style.color = e.target.value;
+            renderer.renderConnections();
+            events.emit("state:changed");
+            const shape = wp.style.shape || "circle";
+            const size = wp.style.size || "medium";
+            updateMainIcon(shape, size, e.target.value);
+            buildGrid(shape, size, e.target.value);
+            if (document.getElementById("waypointPanel")?.classList.contains("open")) {
+                Y(wp, currentWpConnId, currentWpIdx);
+            }
+        });
+    }
 
-    // Переключатель абсолютной/относительной – прямая работа, если есть глобальная toggleWaypointMode
-    miniToggle.addEventListener("click", () => {
-        if (currentWpConnId == null || currentWpIdx == null) return;
-        if (typeof toggleWaypointMode === "function") {
+    // ---------- Переключатель режима ----------
+    if (miniToggle) {
+        miniToggle.addEventListener("click", () => {
+            if (currentWpConnId == null || currentWpIdx == null) return;
             toggleWaypointMode(currentWpConnId, currentWpIdx);
-        } else {
-            // Запасной вариант – имитируем клик по большой кнопке
+            setTimeout(() => {
+                const conn = state.state.connections.find(c => c.id === currentWpConnId);
+                if (conn && conn.waypoints && conn.waypoints[currentWpIdx]) {
+                    const wp = conn.waypoints[currentWpIdx];
+                    const isAbs = wp.offsetX !== undefined;
+                    miniToggle.innerHTML = renderIconHTML(isAbs ? "anchor" : "percent");
+                }
+            }, 50);
+        });
+    }
+
+    // ---------- Форма + Размер через сетку ----------
+    if (miniShapeBtn && shapeSizeGrid) {
+        let originalShape = null, originalSize = null;
+
+        // Делегирование событий наведения и клика на сетку
+        shapeSizeGrid.addEventListener("mouseenter", e => {
+            const btn = e.target.closest('.wp-shape-size-opt');
+            if (!btn) return;
+            if (currentWpConnId == null || currentWpIdx == null) return;
+            const conn = state.state.connections.find(c => c.id === currentWpConnId);
+            if (!conn || !conn.waypoints || !conn.waypoints[currentWpIdx]) return;
+            const wp = conn.waypoints[currentWpIdx];
+            if (!wp.style) wp.style = {};
+            if (originalShape === null) {
+                originalShape = wp.style.shape || "circle";
+                originalSize = wp.style.size || "medium";
+            }
+            wp.style.shape = btn.dataset.shape;
+            wp.style.size = btn.dataset.size;
+            renderer.renderConnections();
+            updateMainIcon(btn.dataset.shape, btn.dataset.size, wp.style.color || "#e8a030");
+        }, true);
+
+        // При покидании сетки — возвращаем исходные
+        shapeSizeGrid.addEventListener("mouseleave", () => {
+            if (originalShape !== null && currentWpConnId != null && currentWpIdx != null) {
+                const conn = state.state.connections.find(c => c.id === currentWpConnId);
+                if (conn && conn.waypoints && conn.waypoints[currentWpIdx]) {
+                    const wp = conn.waypoints[currentWpIdx];
+                    if (!wp.style) wp.style = {};
+                    wp.style.shape = originalShape;
+                    wp.style.size = originalSize;
+                    renderer.renderConnections();
+                    updateMainIcon(originalShape, originalSize, wp.style.color || "#e8a030");
+                }
+                originalShape = null;
+                originalSize = null;
+            }
+        });
+
+        // Клик по опции — фиксируем
+        shapeSizeGrid.addEventListener("click", e => {
+            const btn = e.target.closest('.wp-shape-size-opt');
+            if (!btn) return;
+            e.stopPropagation();
+            if (currentWpConnId == null || currentWpIdx == null) return;
+            const shape = btn.dataset.shape;
+            const size = btn.dataset.size;
             const panel = document.getElementById("waypointPanel");
-            panel.dataset.connId = currentWpConnId;
-            panel.dataset.wpIndex = currentWpIdx;
-            const wpToggleBtn = document.getElementById("wpToggleMode");
-            if (wpToggleBtn) wpToggleBtn.click();
-        }
-        // Обновить иконку через 50 мс
-        setTimeout(() => {
+            if (panel) {
+                panel.dataset.connId = currentWpConnId;
+                panel.dataset.wpIndex = currentWpIdx;
+            }
+            T("shape", shape);
+            T("size", size);
+            originalShape = null; originalSize = null;
+            // Обновить главную иконку и перестроить сетку (текущая комбинация исчезнет)
             const conn = state.state.connections.find(c => c.id === currentWpConnId);
             if (conn && conn.waypoints && conn.waypoints[currentWpIdx]) {
                 const wp = conn.waypoints[currentWpIdx];
-                const isAbs = wp.offsetX !== undefined;
-                miniToggle.innerHTML = renderIconHTML(isAbs ? "anchor" : "percent");
+                const color = wp.style?.color || "#e8a030";
+                updateMainIcon(shape, size, color);
+                buildGrid(shape, size, color);
             }
-        }, 50);
-    });
+            renderer.renderConnections();
+        });
+    }
 
-    // Старая логика (выделение, перетаскивание, контекстное меню)
+    // ---------- Удаление точки ----------
+    if (miniDelete) {
+        miniDelete.addEventListener("click", () => {
+            if (currentWpConnId == null || currentWpIdx == null) return;
+            const conn = state.state.connections.find(c => c.id === currentWpConnId);
+            if (!conn || !conn.waypoints || !conn.waypoints[currentWpIdx]) return;
+            const wp = conn.waypoints[currentWpIdx];
+            const wpCopy = JSON.parse(JSON.stringify(wp));
+            conn.waypoints.splice(currentWpIdx, 1);
+            if (state.state.selectedWaypoint &&
+                state.state.selectedWaypoint.connId === currentWpConnId &&
+                state.state.selectedWaypoint.index === currentWpIdx) {
+                state.state.selectedWaypoint = null;
+            }
+            events.emit("state:changed");
+            renderer.renderConnections();
+            history.push(HistoryActions.waypointRemove(currentWpConnId, wpCopy, currentWpIdx));
+            showToast("Точка удалена", "info");
+            hideMiniPopup();
+        });
+    }
+
+    // Старая логика (перетаскивание, контекстное меню)
     guidesSvg.addEventListener("pointerdown", ev => {
         const target = ev.target.closest(".waypoint-circle");
         if (!target) return;
@@ -3231,24 +3581,25 @@ function deleteSelected() {
     let connectionsCopy = state.state.connections.filter(c => selectedIds.some(id => c.from.blockId === id || c.to.blockId === id)).map(cloneConnection);
 
     selectedIds.forEach(id => {
-    let el = document.getElementById(id);
-    if (el) {
-        el.classList.add("block-deleting");
-        // Удаляем из state сразу, но DOM удалим после анимации
-        state.removeConnectionsForBlock(id);
-    }
-});
-state.state.blocks = state.state.blocks.filter(b => !selectedIds.includes(b.id));
-state.clearSelection();
-events.emit("state:changed");
-
-// После анимации удалить элементы из DOM
-setTimeout(() => {
-    selectedIds.forEach(id => {
         let el = document.getElementById(id);
-        if (el) el.remove();
+        if (el) {
+            el.classList.add("block-deleting");
+            state.removeConnectionsForBlock(id);
+        }
     });
-}, 200);
+    state.state.blocks = state.state.blocks.filter(b => !selectedIds.includes(b.id));
+    // Очищаем множество передних блоков от удалённых
+    selectedIds.forEach(id => state.state.frontBlockIds.delete(id));
+    state.clearSelection();
+    events.emit("state:changed");
+
+    // После анимации удалить элементы из DOM
+    setTimeout(() => {
+        selectedIds.forEach(id => {
+            let el = document.getElementById(id);
+            if (el) el.remove();
+        });
+    }, 200);
 
     history.push(HistoryActions.delete(blocksCopy, connectionsCopy));
 
@@ -4928,8 +5279,16 @@ function initTooltips() {
             tt.textContent = el.dataset.tooltip;
             tt.classList.add('visible');
             const r = el.getBoundingClientRect();
-            tt.style.left = r.left + 'px';
-            tt.style.top = (r.top + 30) + 'px';
+            const inMiniPopup = el.closest('#wpMiniPopup');
+            if (inMiniPopup) {
+                // Показываем над элементом, чтобы не перекрывать дропдаун
+                tt.style.left = r.left + 'px';
+                tt.style.top = (r.top - tt.offsetHeight - 5) + 'px';
+            } else {
+                // Обычное поведение под элементом
+                tt.style.left = r.left + 'px';
+                tt.style.top = (r.top + 30) + 'px';
+            }
         });
         el.addEventListener('mouseleave', () => {
             hideTimeout = setTimeout(() => { tt.classList.remove('visible'); }, 100);
