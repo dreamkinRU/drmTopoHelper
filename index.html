@@ -290,9 +290,29 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .glow-line{fill:none;stroke:#fff;pointer-events:none}
 @keyframes neonPulse{from{opacity:0.8}to{opacity:0.1}}
 
-#altHint{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--surface);border:1px solid var(--border);padding:8px 18px;border-radius:8px;font-size:12px;color:var(--muted);pointer-events:none;opacity:0;transition:opacity .2s var(--easing),transform .2s var(--easing);z-index:calc(var(--z-modal) - 10);box-shadow:0 4px 16px rgba(0,0,0,.4);white-space:nowrap}
-#altHint.visible{opacity:1;transform:translateX(-50%) translateY(0)}
-#altHint kbd {
+#altHint, #shiftHint {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s var(--easing), transform .2s var(--easing);
+  z-index: calc(var(--z-modal) - 10);
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  white-space: nowrap;
+}
+#altHint.visible, #shiftHint.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+#altHint kbd, #shiftHint kbd {
   display: inline-block;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -525,6 +545,8 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 </div>
 
 <div class="workspace" id="workspace">
+    <div id="altHint"><kbd>Alt</kbd> — перемещение блока (даже заблокированного)</div>
+    <div id="shiftHint"><kbd>Shift</kbd> — множественный выбор</div>
 <div class="canvas-wrapper" id="canvasWrapper">
 <svg id="guidesSvg">
 <defs>
@@ -709,7 +731,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "0.999pre7";
+const APP_VERSION = "0.999pre8";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -2201,13 +2223,18 @@ const renderer = (() => {
     if (!block) return;
     const actionEl = e.target.closest("[data-action]");
     const action = actionEl ? actionEl.dataset.action : null;
+
+    // Если Alt зажат и нет действия – перетаскиваем, не трогая выделение
     if (interaction && interaction.altHeld && !action) {
-      interaction.isAltDragging = true;
-      blockEl.classList.add("alt-grab-hint");
-      state.selectBlock(blockId, false);
-      
+      // Выделяем блок только если вообще ничего не выделено
+      if (state.getSelectedIds().length === 0) {
+        state.selectBlock(blockId, false);
+      }
+      initDrag(e, blockEl, block);
+      return;
     }
-    blockEl.classList.remove("alt-grab-hint");
+
+    // Обработка кнопок внутри блока
     if (action === "edit") { e.stopPropagation(); e.preventDefault(); openEditModal(blockId); return; }
     if (action === "lock") { e.stopPropagation(); e.preventDefault(); state.lockBlock(blockId, !block.isLocked); return; }
     if (action === "resize" && !block.isLocked) { e.stopPropagation(); e.preventDefault(); initResize(e, blockEl, block); return; }
@@ -2217,25 +2244,21 @@ const renderer = (() => {
       initItemDrag(e, blockEl, block, block.items[idx]);
       return;
     }
-        state.bringToFront(blockId);
-        if (e.shiftKey) {
-            state.selectBlock(blockId, true);
-        } else {
-            if (!state.state.selectedIds.has(blockId)) {
-                state.selectBlock(blockId, false);
-            }
-            // Если блок уже выделен, оставляем текущее выделение без изменений
-        }
 
-        // Инициализируем перетаскивание для любого блока (проверка блокировки внутри)
-        if (!block.isLocked || (interaction && interaction.altHeld)) {
-            initDrag(e, blockEl, block);
-        } else {
-            // Заблокированный блок без Alt — пока просто ничего не делаем,
-            // движение будет обработано внутри initDrag при превышении порога
-            initDrag(e, blockEl, block);
-        }
-  }
+    // Обычное выделение
+    state.bringToFront(blockId);
+    if (e.shiftKey) {
+      state.selectBlock(blockId, true);   // переключить выделение этого блока
+    } else {
+      if (!state.state.selectedIds.has(blockId)) {
+        state.selectBlock(blockId, false); // выделить только его, если не был выделен
+      }
+      // Если уже был выделен – оставляем текущее выделение (для группового перетаскивания)
+    }
+
+    // Запускаем перетаскивание (проверка блокировки внутри initDrag)
+    initDrag(e, blockEl, block);
+}
 
   function setupCanvasDelegation() {
     canvasWrapper.addEventListener("mouseleave", () => {
@@ -3595,6 +3618,8 @@ let interaction = new class {
 
         this.altHeld = false;
         this.isAltDragging = false;
+        this.ah = document.getElementById("altHint");
+        this.shHint = document.getElementById("shiftHint");
 
         this.rbEl = null;
         this.rbSX = 0; this.rbSY = 0;
@@ -3607,13 +3632,33 @@ let interaction = new class {
         this.init();
     }
 
+    
     _setupKeyboardEvents() {
+    document.addEventListener("keyup", (e) => {
+        if (e.key === "Alt") {
+            e.preventDefault();
+            this.altHeld = false;
+            this.isAltDragging = false;
+            this.ws.classList.remove("alt-drag");
+            if (this.ah) this.ah.classList.remove("visible");
+            this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
+        }
+        if (e.key === "Shift") {
+        if (this.shHint) this.shHint.classList.remove("visible");
+    }
+    });
     document.addEventListener("keydown", (e) => {
         // Alt — переключаем флаг и показываем подсказку
         if (e.key === "Alt") {
+            e.preventDefault();
             this.altHeld = true;
             this.ws.classList.add("alt-drag");
+            if (this.ah) this.ah.classList.add("visible");
             return;
+        }
+        if (e.key === "Shift") {
+            if (this.shHint) this.shHint.classList.add("visible");
+            // Не вызываем preventDefault, чтобы Shift продолжал работать в инпутах
         }
 
         // Горячие клавиши, которые работают всегда
@@ -3757,17 +3802,6 @@ let interaction = new class {
             return;
         }
     });
-
-    document.addEventListener("keyup", (e) => {
-        if (e.key === "Alt") {
-            e.preventDefault();
-            this.altHeld = false;
-            this.isAltDragging = false;
-            this.ws.classList.remove("alt-drag");
-            this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
-        }
-    });
-
 }
 
     _setupMouseEvents() {
@@ -4006,8 +4040,10 @@ let interaction = new class {
         this.altHeld = false;
         this.isAltDragging = false;
         this.ws.classList.remove("alt-drag");
-        this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
+        if (this.ah) this.ah.classList.remove("visible");
     }
+    if (this.shHint) this.shHint.classList.remove("visible");
+    this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
 }
 
     init() {
