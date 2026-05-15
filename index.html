@@ -709,7 +709,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "0.999pre6";
+const APP_VERSION = "0.999pre7";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -761,7 +761,7 @@ const SVG_ICONS = {
   'align-center-h': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><line x1="12" y1="3" x2="12" y2="21" stroke="#ffffff"/><line x1="5" y1="12" x2="19" y2="12" stroke="#4a4a56"/><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none"/></svg>',
   'align-center-v': '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12" stroke="#ffffff"/><line x1="12" y1="5" x2="12" y2="19" stroke="#4a4a56"/><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none"/></svg>',
   windows: '<svg width="448" height="512" viewBox="0 0 448 512"><defs><linearGradient id="globalLight" gradientUnits="userSpaceOnUse" x1="44" y1="456" x2="404" y2="56"><stop offset="0%" stop-color="#000000" stop-opacity="0.18"/><stop offset="45%" stop-color="#000000" stop-opacity="0"/><stop offset="55%" stop-color="#ffffff" stop-opacity="0"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.45"/></linearGradient></defs><g><rect x="44" y="56" width="172" height="192" fill="#005B96"/><rect x="232" y="56" width="172" height="192" fill="#35A0E2"/><rect x="44" y="264" width="172" height="192" fill="#0280C4"/><rect x="232" y="264" width="172" height="192" fill="#6ABBEF"/></g><g fill="url(#globalLight)"><rect x="44" y="56" width="172" height="192"/><rect x="232" y="56" width="172" height="192"/><rect x="44" y="264" width="172" height="192"/><rect x="232" y="264" width="172" height="192"/></g></svg>',
-  linux: '<svg aria-label="Linux" role="img" viewBox="0 0 512 512" fill="#333"><rect width="512" height="512" rx="15%" fill="#ffffff"/><g transform="matrix(2 0 0 2 256 256)"><path d="M-32-25c-3 7-24 29-22 51 8 92 36 30 78 53 0 0 75-42 15-110-17-24-2-43-13-59s-30-17-44-2 6 37-14 67"/><path d="M42 21s9-18-8-31c16 17 6 32 6 32h-3C36-13 27 6 14-56 29-73 0-88 0-60h-9c1-24-20-12-8 5-1 37-23 52-23 78-7-18 6-32 6-32s-18 15-7 37 31 17 17 27c22 15 56 5 55-27 1-8 22-5 24-3s-3-4-13-4m-56-78c-7-2-5-11-2-11s8 7 2 11m19 1c-5-7-1-14 4-13s5 13-4 13" fill="#eee"/><g fill="#fc2" stroke="#333" stroke-width="1"><path d="M-41 31l21 30c11 7 5 35-25 21-17-5-31-4-33-13s4-10 3-14c-4-22 14-11 19-22s5-16 15-2M71 45c-4-6 0-17-14-16-6 12-23 24-24 0-10 0-3 24-7 35-9 27 17 29 28 16l26-18c2-3 5-6-9-17m-92-92c-3-6 11-14 16-14s12 4 19 6 4 9 2 10S3-35-5-35s-10-8-16-12"/><path d="M-21-48c8 6 17 11 35-3"/></g><path d="M-10-54c-2 0 1-2 2-1m7 1c1-1-1-2-3-1"/></g></svg>',
+  linux: '<svg viewBox="60 30 400 430" fill="none"><g transform="matrix(2 0 0 2 256 256)"><path d="M-32-25c-3 7-24 29-22 51 8 92 36 30 78 53 0 0 75-42 15-110-17-24-2-43-13-59s-30-17-44-2 6 37-14 67" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="2"/><path d="M42 21s9-18-8-31c16 17 6 32 6 32h-3C36-13 27 6 14-56 29-73 0-88 0-60h-9c1-24-20-12-8 5-1 37-23 52-23 78-7-18 6-32 6-32s-18 15-7 37 31 17 17 27c22 15 56 5 55-27 1-8 22-5 24-3s-3-4-13-4m-56-78c-7-2-5-11-2-11s8 7 2 11m19 1c-5-7-1-14 4-13s5 13-4 13" fill="#e8e6e3" stroke="#1a1a1a" stroke-width="2"/><g fill="#f59e0b" stroke="#1a1a1a" stroke-width="2"><path d="M-41 31l21 30c11 7 5 35-25 21-17-5-31-4-33-13s4-10 3-14c-4-22 14-11 19-22s5-16 15-2M71 45c-4-6 0-17-14-16-6 12-23 24-24 0-10 0-3 24-7 35-9 27 17 29 28 16l26-18c2-3 5-6-9-17m-92-92c-3-6 11-14 16-14s12 4 19 6 4 9 2 10S3-35-5-35s-10-8-16-12"/><path d="M-21-48c8 6 17 11 35-3"/></g><path d="M-10-54c-2 0 1-2 2-1m7 1c1-1-1-2-3-1" fill="#e8e6e3" stroke="#1a1a1a" stroke-width="2"/></g></svg>',
   scanner_shk: '<svg fill="#ffffff" height="200px" width="200px" version="1.1" id="Layer_1" viewBox="0 0 512 512" xml:space="preserve"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <g> <path d="M240.905,102.63C134.963,77.406,59.887,96.486,24.977,122.743C9.523,134.366,0.657,148.207,0,162.133 c0,19.823,16.521,39.057,40.354,48.154C16.572,283.631,3.934,390.972,0,469.333C0,493.261,26.24,512,59.733,512h85.333 c4.71,0,8.533-3.814,8.533-8.533v-34.133c0-4.719-3.823-8.533-8.533-8.533c-18.586,0-33.758-18.671-34.125-41.788l25.404-118.554 c0.589-2.748-0.213-5.615-2.142-7.654c-0.802-0.845-1.365-1.783-2.065-2.671H153.6c2.799,0,5.419-1.374,7.014-3.678 c1.596-2.304,1.954-5.231,0.981-7.851c-3.661-9.771-0.265-37.905,17.084-60.262l5.239,2.62c1.826,0.896,3.9,1.143,5.888,0.64 l34.133-8.533c3.251-0.811,5.726-3.448,6.323-6.75l17.067-93.867C248.141,107.998,245.325,103.68,240.905,102.63z M35.234,136.388 c21.026-15.812,58.573-28.621,110.549-28.621c10.598,0,21.914,0.657,33.69,1.809c-0.077,0.461-0.273,0.87-0.273,1.357 c0,23.125-31.266,42.667-68.267,42.667H19.695C22.639,147.823,27.947,141.867,35.234,136.388z M94.054,416.341 c-0.128,0.589-0.188,1.195-0.188,1.792c0,29.542,18.483,54.153,42.667,58.897v17.903h-76.8c-23.125,0-42.667-11.725-42.675-25.173 c0.29-5.692,0.631-11.571,1.016-17.544c13.705-0.29,26.863-6.443,37.137-17.476c16.213-17.417,23.876-44.74,21.589-76.663 c-0.555-14.14,4.344-27.332,13.79-37.154c7.561-7.868,17.664-12.902,26.829-13.576L94.054,416.341z M143.369,273.067h-18.645 c-1.647-10.513,0.708-21.47,4.736-30.216c6.912-14.985,18.534-25.284,31.147-28.442 C147.337,234.539,142.327,257.246,143.369,273.067z M171.102,196.275c-23.066-1.289-45.551,14.302-57.131,39.433 c-8.823,19.14-9.037,38.955-1.425,55.014c-12.262,1.843-24.67,8.38-34.261,18.355c-12.689,13.201-19.277,30.831-18.526,49.929 c1.963,27.426-4.087,50.185-17.041,64.094c-6.682,7.177-14.942,11.213-23.441,11.844c5.692-74.931,18.449-165.615,39.979-227.337 c0.785-2.253,0.597-4.727-0.529-6.835c-1.126-2.099-3.081-3.644-5.393-4.233c-16.64-4.301-29.833-14.746-34.415-25.873h92.015 c27.793,0,52.343,11.025,62.848,26.317C172.919,196.642,172.032,196.326,171.102,196.275z M214.451,197.862l-19.627,4.907 c-4.275-17.365-18.765-31.974-39.322-40.636c24.363-10.257,40.363-28.834,40.695-50.526c10.59,1.493,21.453,3.311,32.87,5.82 L214.451,197.862z"></path> </g> </g> <g> <g> <path d="M452.267,0c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c17.818,0,42.667,55.194,42.667,145.067 S470.084,307.2,452.267,307.2c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c38.801,0,59.733-83.533,59.733-162.133 S491.068,0,452.267,0z"></path> </g> </g> <g> <g> <path d="M384,34.133c-4.71,0-8.533,3.814-8.533,8.533S379.29,51.2,384,51.2c20.181,0,42.667,45.559,42.667,110.933 S404.181,273.067,384,273.067c-4.71,0-8.533,3.814-8.533,8.533c0,4.719,3.823,8.533,8.533,8.533 c34.057,0,59.733-55.023,59.733-128S418.057,34.133,384,34.133z"></path> </g> </g> <g> <g> <path d="M315.733,68.267c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c23.125,0,42.667,35.166,42.667,76.8 c0,41.634-19.541,76.8-42.667,76.8c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533 c33.493,0,59.733-41.233,59.733-93.867S349.227,68.267,315.733,68.267z"></path> </g> </g> </g></svg>',
   printer_shk: '<svg fill="#ffffff" width="800px" height="800px" viewBox="0 -8 72 72"><path d="M8,7h7V42H8ZM18.5,7H22V42H18.5Zm7,0H29V42H25.5ZM36,7h3.5V42H36ZM50,7h3.5V42H50ZM60.5,7H64V42H60.5ZM43,7h1.75V42H43ZM32.5,7h1.75V42H32.5ZM55.25,7H57V42H55.25ZM8,45.5h3.5V49H8Zm10.5,0H22V49H18.5Zm7,0H29V49H25.5Zm17.5,0h3.5V49H43Zm17.5,0H64V49H60.5ZM50,45.5h7V49H50Zm-17.5,0h7V49h-7V45.5Z"/></svg>',
   print: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff">  <path d="M18.75 17H20C20.5523 17 21 16.5523 21 16V8C21 7.44772 20.5523 7 20 7H4C3.44772 7 3 7.44772 3 8V16C3 16.5523 3.44772 17 4 17H5.25" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 12C6 11.4477 6.44772 11 7 11H17C17.5523 11 18 11.4477 18 12V20C18 20.5523 17.5523 21 17 21H7C6.44772 21 6 20.5523 6 20V12Z" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 4C6 3.44772 6.44772 3 7 3H17C17.5523 3 18 3.44772 18 4V7H6V4Z" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.5 13.5H15.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.5 18.5H15.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.5 16H15.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>',
@@ -3721,8 +3721,30 @@ let interaction = new class {
             return;
         }
 
-        // Escape — снять выделение
+                // Escape — закрыть модальные окна/панели, затем снять выделение
         if (e.key === "Escape") {
+            if (editModal.classList.contains("open")) {
+                closeEditModal();
+                return;
+            }
+            if (errorOverlay.classList.contains("open")) {
+                errorOverlay.classList.remove("open");
+                return;
+            }
+            const connPanel = document.getElementById("connectionPanel");
+            if (connPanel.classList.contains("open")) {
+                connPanel.classList.remove("open");
+                state.state.selectedConnectionId = null;
+                events.emit("state:changed");
+                return;
+            }
+            const wpPanel = document.getElementById("waypointPanel");
+            if (wpPanel.classList.contains("open")) {
+                wpPanel.classList.remove("open");
+                state.state.selectedWaypoint = null;
+                events.emit("state:changed");
+                return;
+            }
             state.clearSelection();
             return;
         }
@@ -3738,6 +3760,7 @@ let interaction = new class {
 
     document.addEventListener("keyup", (e) => {
         if (e.key === "Alt") {
+            e.preventDefault();
             this.altHeld = false;
             this.isAltDragging = false;
             this.ws.classList.remove("alt-drag");
