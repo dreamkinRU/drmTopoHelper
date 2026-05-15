@@ -236,7 +236,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 #minimapViewport{position:absolute;border:1.5px solid var(--accent);background:rgba(232,160,48,.08);pointer-events:none;border-radius:2px}
 
 #guidesSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:var(--z-guides);overflow:visible}
-#tempSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:calc(var(--z-connections) + 10);overflow:visible}
+#tempSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index: 1000;overflow:visible}
 .guide-line{stroke:#e8a030;stroke-width:1;stroke-dasharray:4 4;opacity:0}
 .connection-line{fill:none;stroke:var(--accent)}
 .connection-line.selected{stroke:var(--accent)}
@@ -435,6 +435,8 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   color: #ffffff;
   opacity: 0.7;
 }
+#newItemInvNum { flex: 0.75 !important; }
+#newItemLabel { flex: 1.125 !important; }
 </style>
 </head>
 <body>
@@ -581,20 +583,36 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 
 <div class="modal-overlay" id="editModal">
 <div class="modal" id="modalContent">
-<div class="form-group"><label class="form-label">Заголовок блока</label><input type="text" class="input-field" id="blockTitleInput" placeholder="Например: Серверная" maxlength="40"></div>
-<div class="form-group"><label class="form-label">Элементы</label><div class="item-list" id="itemList"></div></div>
-<div class="form-group"><label class="form-label">Добавить элемент</label><div class="icon-grid" id="iconGrid"></div><div style="margin-top:8px;display:flex;gap:8px"><input type="text" class="input-field" id="newItemInvNum" placeholder="Инв. номер" maxlength="10" style="flex:1"><input type="text" class="input-field" id="newItemLabel" placeholder="Подпись..." style="flex:1.5"></div><button class="btn btn-accent" style="margin-top:8px;width:100%;justify-content:center" id="btnAddItem"><span class="drm-icon-slot" data-icon="plus"></span><span style="margin-left:4px">Добавить</span></button></div>
-<div class="form-group"><label class="form-label">Изображение (URL)</label><input type="text" class="input-field" id="blockImageUrl" placeholder="https://..."></div>
-<div class="form-group"><label class="form-label">Фон блока</label><div class="color-grid" id="colorGrid"></div><div style="margin-top:8px;display:flex;align-items:center;gap:8px"><label class="form-label" style="margin:0;white-space:nowrap">Свой цвет:</label><input type="color" id="customColor" value="#1e1e22" style="width:36px;height:28px;border:none;background:none;cursor:pointer"></div></div>
-<div class="form-group"><label class="form-label">Связи блока</label><div id="connectionList" class="conn-list"></div><div id="noConns" style="font-size:12px;color:var(--muted);padding:4px 0">Нет связей. Тяните от порта при наведении.</div></div>
-</div>
-</div>
-
-<div class="modal-overlay" id="errorOverlay">
-<div class="error-dialog">
-<h3><span class="drm-icon-slot" data-icon="circle_exclamation"></span>Ошибка загрузки</h3>
-<p id="errorMessage">Не удалось прочитать файл.</p>
-<div class="error-actions"><button class="btn" id="errorCancel">Отмена</button><button class="btn btn-accent" id="errorRetry">Выбрать файл</button></div>
+  <div class="form-group">
+    <input type="text" class="input-field" id="blockTitleInput" placeholder="Название блока" maxlength="40">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Элементы</label>
+    <div class="item-list" id="itemList"></div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Добавить</label>
+    <div class="icon-grid" id="iconGrid"></div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+      <input type="text" class="input-field" id="newItemInvNum" placeholder="Инв. номер" style="flex:0.75">
+      <input type="text" class="input-field" id="newItemLabel" placeholder="Подпись" style="flex:1.125">
+      <button class="btn btn-accent" style="white-space:nowrap;padding:8px 16px;height:42px;" id="btnAddItem"><span class="drm-icon-slot" data-icon="plus"></span> Добавить</button>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Изображение (URL)</label>
+    <input type="text" class="input-field" id="blockImageUrl" placeholder="https://...">
+  </div>
+  <div class="form-group">
+    <div class="color-grid" id="colorGrid"></div>
+    <!-- custom color input будет скрыт, его кликнет ячейка палитры -->
+    <input type="color" id="customColor" value="#1e1e22" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Связи блока</label>
+    <div id="connectionList" class="conn-list"></div>
+    <div id="noConns" style="font-size:12px;color:var(--muted);padding:4px 0">Нет связей. Тяните от порта при наведении.</div>
+  </div>
 </div>
 </div>
 
@@ -676,12 +694,22 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="btn-row"><button class="btn btn-danger" id="btnDeleteWaypoint">Удалить точку</button></div>
 </div>
 
+<div class="modal-overlay" id="errorOverlay">
+  <div class="error-dialog">
+    <h3><span class="drm-icon-slot" data-icon="circle_exclamation"></span>Ошибка загрузки</h3>
+    <p id="errorMessage">Не удалось прочитать файл.</p>
+    <div class="error-actions">
+      <button class="btn" id="errorCancel">Отмена</button>
+      <button class="btn btn-accent" id="errorRetry">Выбрать файл</button>
+    </div>
+  </div>
+</div>
 <div class="toast-container" id="toastContainer"></div>
 <div id="tooltip"></div>
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "0.999pre3";
+const APP_VERSION = "0.999pre4";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -1235,28 +1263,35 @@ const HistoryActions = {
     const blocksCopy = blocks.map(b => cloneBlock(b));
     const connsCopy = connections.map(c => cloneConnection(c));
     return {
-      type: "delete",
-      undo: () => {
-        connsCopy.forEach(c => state.state.connections.push(cloneConnection(c)));
-        blocksCopy.forEach(b => {
-          state.state.blocks = [...state.state.blocks, cloneBlock(b)];
-          renderer.renderBlock(state.getBlock(b.id));
-        });
-        events.emit("state:changed");
-      },
-      redo: () => {
-        connsCopy.forEach(c => { state.state.connections = state.state.connections.filter(cc => cc.id !== c.id); });
-        blocksCopy.forEach(b => {
-          const el = document.getElementById(b.id);
-          if (el) el.remove();
-          state.state.blocks = state.state.blocks.filter(bb => bb.id !== b.id);
-          state.removeConnectionsForBlock(b.id);
-        });
-        state.clearSelection();
-        events.emit("state:changed");
-      }
+        type: "delete",
+        undo: () => {
+            // Сначала удаляем текущие элементы (если они ещё есть – например, после отмены удаления)
+            blocksCopy.forEach(b => {
+                const existing = document.getElementById(b.id);
+                if (existing) existing.remove();
+            });
+            // Восстанавливаем блоки в state
+            blocksCopy.forEach(b => {
+                state.state.blocks = [...state.state.blocks, cloneBlock(b)];
+                renderer.renderBlock(state.getBlock(b.id));
+            });
+            connsCopy.forEach(c => state.state.connections.push(cloneConnection(c)));
+            events.emit("state:changed");
+        },
+        redo: () => {
+            connsCopy.forEach(c => {
+                state.state.connections = state.state.connections.filter(cc => cc.id !== c.id);
+            });
+            blocksCopy.forEach(b => {
+                const el = document.getElementById(b.id);
+                if (el) el.remove();
+                state.state.blocks = state.state.blocks.filter(bb => bb.id !== b.id);
+            });
+            state.clearSelection();
+            events.emit("state:changed");
+        }
     };
-  },
+},
   duplicate(newIds, oldBlocks) {
     const newBlocksData = newIds.map(id => cloneBlock(state.getBlock(id)));
     const oldBlocksData = oldBlocks.map(b => cloneBlock(b));
@@ -2879,6 +2914,7 @@ function updateConnectionList() {
 
 function renderColorGrid() {
     colorGrid.innerHTML = "";
+    // Стандартные цвета (первые две строки)
     PRESET_COLORS.forEach(e => {
         let t = document.createElement("div");
         t.className = "color-swatch" + (e === state.state.selectedColor ? " active" : "") + ("transparent" === e ? " transparent-swatch" : "");
@@ -2891,6 +2927,22 @@ function renderColorGrid() {
         });
         colorGrid.appendChild(t);
     });
+
+    // Ячейка для произвольного цвета (в третьей строке)
+    const customSwatch = document.createElement("div");
+    customSwatch.className = "color-swatch";
+    customSwatch.style.background = "var(--surface)";
+    customSwatch.style.border = "2px dashed var(--muted)";
+    customSwatch.innerHTML = renderIconHTML("pen", "width:16px;height:16px;color:var(--muted);");
+    customSwatch.title = "Выбрать свой цвет";
+    if (!PRESET_COLORS.includes(state.state.selectedColor) && state.state.selectedColor !== null) {
+        customSwatch.classList.add("active");
+    }
+    customSwatch.addEventListener("click", () => {
+        // Открываем скрытый color input
+        customColor.click();
+    });
+    colorGrid.appendChild(customSwatch);
 }
 
 function renderIconGrid() {
@@ -2997,17 +3049,24 @@ function deleteSelected() {
     let connectionsCopy = state.state.connections.filter(c => selectedIds.some(id => c.from.blockId === id || c.to.blockId === id)).map(cloneConnection);
 
     selectedIds.forEach(id => {
-        let el = document.getElementById(id);
-        if (el) {
-            el.classList.add("block-deleting");
-            setTimeout(() => el.remove(), 200);
-        }
+    let el = document.getElementById(id);
+    if (el) {
+        el.classList.add("block-deleting");
+        // Удаляем из state сразу, но DOM удалим после анимации
         state.removeConnectionsForBlock(id);
-    });
+    }
+});
+state.state.blocks = state.state.blocks.filter(b => !selectedIds.includes(b.id));
+state.clearSelection();
+events.emit("state:changed");
 
-    state.state.blocks = state.state.blocks.filter(b => !selectedIds.includes(b.id));
-    state.clearSelection();
-    events.emit("state:changed");
+// После анимации удалить элементы из DOM
+setTimeout(() => {
+    selectedIds.forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.remove();
+    });
+}, 200);
 
     history.push(HistoryActions.delete(blocksCopy, connectionsCopy));
 
@@ -3597,15 +3656,17 @@ let interaction = new class {
         }
 
         // Горячие клавиши, которые работают всегда
-        if (e.ctrlKey && e.code === "KeyZ" && !e.shiftKey) {
-            e.preventDefault();
-            history.undo() && showToast("↩ Отменено", "info");
-            return;
-        }
-        if (e.ctrlKey && (e.code === "KeyY" || (e.shiftKey && e.code === "KeyZ"))) {
-            e.preventDefault();
-            history.redo() && showToast("↪ Повторено", "info");
-            return;
+        const activeTag = document.activeElement.tagName;
+        const isInputActive = ["INPUT", "TEXTAREA", "SELECT"].includes(activeTag);
+        if (!isInputActive) {
+            if (e.ctrlKey && e.code === "KeyZ" && !e.shiftKey) {
+                e.preventDefault();
+                history.undo() && showToast("↩ Отменено", "info");
+            }
+            if (e.ctrlKey && (e.code === "KeyY" || (e.shiftKey && e.code === "KeyZ"))) {
+                e.preventDefault();
+                history.redo() && showToast("↪ Повторено", "info");
+            }
         }
         if (e.ctrlKey && e.code === "KeyD") {
             e.preventDefault();
@@ -3614,7 +3675,6 @@ let interaction = new class {
         }
 
         // Остальные клавиши — только если фокус не в поле ввода
-        const activeTag = document.activeElement.tagName;
         if (["INPUT", "TEXTAREA", "SELECT"].includes(activeTag)) return;
 
         const selectedCount = state.state.selectedIds.size;
@@ -3730,6 +3790,7 @@ let interaction = new class {
             this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
         }
     });
+
 }
 
     _setupMouseEvents() {
@@ -4160,25 +4221,25 @@ document.getElementById("wpToggleMode").addEventListener("click", () => {
     const newWp = JSON.parse(JSON.stringify(wp));
 
     history.push({
-        type: "wp-toggle-mode",
-        undo: () => {
-            const conn = state.state.connections.find(c => c.id === connId);
-            if (conn && conn.waypoints && conn.waypoints[idx]) {
-                Object.assign(conn.waypoints[idx], oldWp);
-                events.emit("state:changed");
-                renderer.renderConnections();
-                Y(conn.waypoints[idx], connId, idx);
-            }
-        },
-        redo: () => {
-            const conn = state.state.connections.find(c => c.id === connId);
-            if (conn && conn.waypoints && conn.waypoints[idx]) {
-                Object.assign(conn.waypoints[idx], newWp);
-                events.emit("state:changed");
-                renderer.renderConnections();
-                Y(conn.waypoints[idx], connId, idx);
-            }
+    type: "wp-toggle-mode",
+    undo: () => {
+        const conn = state.state.connections.find(c => c.id === connId);
+        if (conn && conn.waypoints && conn.waypoints[idx]) {
+            conn.waypoints[idx] = JSON.parse(JSON.stringify(oldWp));
+            events.emit("state:changed");
+            renderer.renderConnections();
+            Y(conn.waypoints[idx], connId, idx);
         }
+    },
+    redo: () => {
+        const conn = state.state.connections.find(c => c.id === connId);
+        if (conn && conn.waypoints && conn.waypoints[idx]) {
+            conn.waypoints[idx] = JSON.parse(JSON.stringify(newWp));
+            events.emit("state:changed");
+            renderer.renderConnections();
+            Y(conn.waypoints[idx], connId, idx);
+        }
+    }
     });
 
     events.emit("state:changed");
@@ -4251,30 +4312,45 @@ if (sizeSelectorEl) {
     });
 }
 
-document.getElementById("btnLoad").addEventListener("click", () => document.getElementById("fileInput").click());
-document.getElementById("fileInput").addEventListener("change", e => {
-    let t = e.target.files[0];
-    if (!t) return;
-    let n = new FileReader();
-    n.onload = e => {
-        try {
-            loadFromJSON(JSON.parse(e.target.result), "файл");
-        } catch (e) {
-            errorMessage.textContent = e.message;
-            errorOverlay.classList.add("open");
-        }
-    };
-    n.readAsText(t);
-    e.target.value = "";
-});
-document.getElementById("errorCancel").addEventListener("click", () => errorOverlay.classList.remove("open"));
-document.getElementById("errorRetry").addEventListener("click", () => {
-    errorOverlay.classList.remove("open");
-    document.getElementById("fileInput").click();
-});
-document.getElementById("errorOverlay").addEventListener("click", e => {
-    if (e.target === errorOverlay) errorOverlay.classList.remove("open");
-});
+// Безопасное добавление обработчиков
+const btnLoadEl = document.getElementById("btnLoad");
+const fileInputEl = document.getElementById("fileInput");
+if (btnLoadEl && fileInputEl) {
+    btnLoadEl.addEventListener("click", () => fileInputEl.click());
+    fileInputEl.addEventListener("change", e => {
+        let t = e.target.files[0];
+        if (!t) return;
+        let n = new FileReader();
+        n.onload = e => {
+            try {
+                loadFromJSON(JSON.parse(e.target.result), "файл");
+            } catch (e) {
+                if (errorMessage) errorMessage.textContent = e.message;
+                if (errorOverlay) errorOverlay.classList.add("open");
+            }
+        };
+        n.readAsText(t);
+        e.target.value = "";
+    });
+}
+
+const errorCancelBtn = document.getElementById("errorCancel");
+if (errorCancelBtn) {
+    errorCancelBtn.addEventListener("click", () => errorOverlay && errorOverlay.classList.remove("open"));
+}
+const errorRetryBtn = document.getElementById("errorRetry");
+if (errorRetryBtn) {
+    errorRetryBtn.addEventListener("click", () => {
+        if (errorOverlay) errorOverlay.classList.remove("open");
+        const fi = document.getElementById("fileInput");
+        if (fi) fi.click();
+    });
+}
+if (errorOverlay) {
+    errorOverlay.addEventListener("click", e => {
+        if (e.target === errorOverlay) errorOverlay.classList.remove("open");
+    });
+}
 document.getElementById("btnUndo").addEventListener("click", () => {
     history.undo() && showToast("↩ Отменено", "info");
 });
@@ -4582,11 +4658,13 @@ btnAddItem.addEventListener("click", () => {
     renderItemList();
     scheduleUpdate();
 });
-customColor.addEventListener("input", () => {
-    state.state.selectedColor = customColor.value;
-    renderColorGrid();
-    scheduleUpdate();
-});
+if (customColor) {
+    customColor.addEventListener("input", () => {
+        state.state.selectedColor = customColor.value;
+        renderColorGrid();
+        scheduleUpdate();
+    });
+};
 
 // Иконки в data-icon
 document.querySelectorAll(".drm-icon-slot[data-icon]").forEach(e => {
