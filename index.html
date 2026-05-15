@@ -709,7 +709,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "0.999pre4";
+const APP_VERSION = "0.999pre5";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -2203,9 +2203,8 @@ const renderer = (() => {
     if (interaction && interaction.altHeld && !action) {
       interaction.isAltDragging = true;
       blockEl.classList.add("alt-grab-hint");
-      if (!state.state.selectedIds.has(blockId)) state.selectBlock(blockId, false);
-      initDrag(e, blockEl, block);
-      return;
+      state.selectBlock(blockId, false);
+      
     }
     blockEl.classList.remove("alt-grab-hint");
     if (action === "edit") { e.stopPropagation(); e.preventDefault(); openEditModal(blockId); return; }
@@ -2219,12 +2218,10 @@ const renderer = (() => {
     }
         state.bringToFront(blockId);
         if (e.shiftKey) {
-        state.selectBlock(blockId, true);
-    } else {
-        if (!state.state.selectedIds.has(blockId)) {
+            state.selectBlock(blockId, true);
+        } else {
             state.selectBlock(blockId, false);
         }
-    }
         if (!block.isLocked) {
         initDrag(e, blockEl, block);
     } else {
@@ -3899,9 +3896,7 @@ let interaction = new class {
             const targetBlock = e.target.closest(".block");
             if (targetBlock) {
                 const blockId = targetBlock.dataset.blockId;
-                if (!state.state.selectedIds.has(blockId)) {
                     state.selectBlock(blockId, false);
-                }
                 const block = state.getBlock(blockId);
                 if (block) {
                     const cnt = state.getSelectedIds().length;
@@ -4026,13 +4021,24 @@ let interaction = new class {
                 }
             }
         });
+    };
+    resetAltState() {
+    if (this.altHeld) {
+        this.altHeld = false;
+        this.isAltDragging = false;
+        this.ws.classList.remove("alt-drag");
+        this.ah.classList.remove("visible");
+        this.cw.querySelectorAll(".block.alt-grab-hint").forEach(el => el.classList.remove("alt-grab-hint"));
     }
+}
 
     init() {
         this._setupKeyboardEvents();
         this._setupMouseEvents();
         this._setupContextMenuEvents();
         this._setupConnContextMenuEvents();
+        window.addEventListener('blur', () => this.resetAltState());
+        window.addEventListener('visibilitychange', () => {if (document.hidden) this.resetAltState();});
     }
 }(zoomController);
 
