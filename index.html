@@ -282,8 +282,8 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 #waypointPanel .size-option.active{background:var(--accent);color:#0c0c0c}
 
 .waypoint-circle{stroke:var(--surface);stroke-width:2;cursor:pointer;pointer-events:auto;transition:fill .1s;z-index:2}
-.waypoint-circle:hover{fill:#fff}
-.waypoint-circle.selected{fill:var(--danger);stroke:#fff}
+.waypoint-circle:not(.selected):hover{fill:#fff}
+.waypoint-circle.selected{stroke:#fff}
 .label-drag-handle{cursor:move;fill:transparent;stroke:none}
 .connection-label-bg{fill:var(--surface);stroke:var(--border);stroke-width:1;rx:4;pointer-events:none}
 .connection-label{fill:var(--fg);font-size:12px;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
@@ -703,14 +703,20 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="section" id="wpSecCurve">
 <div class="section-header"><span>Настройки</span><span class="toggle-icon">▼</span></div>
 <div class="section-content">
-<div id="wpTPositionGroup">
-<label>Позиция (<span id="wpTVal">50%</span>)</label><input type="range" id="wpT" min="0" max="100" step="1" value="50">
-</div>
-<label>Притяжение (<span id="wpTensionVal">0.5</span>)</label><input type="range" id="wpTension" min="0" max="1" step="0.1" value="0.5">
-<label>Асимметрия (<span id="wpSkewVal">0</span>)</label><input type="range" id="wpSkew" min="-1" max="1" step="0.1" value="0">
-<label>Доворот касат. (<span id="wpAngleVal">0</span>°)</label><input type="range" id="wpAngle" min="-60" max="60" value="0">
-<label>Режим точки</label>
-<button class="btn" id="wpToggleMode" style="margin-bottom:8px;">Сделать абсолютной</button>
+    <div id="wpTPositionGroup">
+      <label>Позиция (<span id="wpTVal">50%</span>)</label>
+      <input type="range" id="wpT" min="0" max="100" step="1" value="50">
+    </div>
+    <div id="wpAdvancedGroup">
+      <label>Притяжение (<span id="wpTensionVal">0.5</span>)</label>
+      <input type="range" id="wpTension" min="0" max="1" step="0.1" value="0.5">
+      <label>Асимметрия (<span id="wpSkewVal">0</span>)</label>
+      <input type="range" id="wpSkew" min="-1" max="1" step="0.1" value="0">
+      <label>Доворот касат. (<span id="wpAngleVal">0</span>°)</label>
+      <input type="range" id="wpAngle" min="-60" max="60" value="0">
+    </div>
+    <label>Режим точки</label>
+    <button class="btn" id="wpToggleMode" style="margin-bottom:8px;">Сделать абсолютной</button>
 </div>
 </div>
 <div class="btn-row"><button class="btn btn-danger" id="btnDeleteWaypoint">Удалить точку</button></div>
@@ -731,7 +737,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "0.999pre8";
+const APP_VERSION = "0.999pre9";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -1818,17 +1824,18 @@ const renderer = (() => {
     const endMarker = conn.endMarker || "triangle";
     const startMarkerUrl = startMarker !== "none" ? `url(#marker-${startMarker})` : "none";
     const endMarkerUrl = endMarker !== "none" ? `url(#marker-${endMarker})` : "none";
+    const hasMarker = startMarkerUrl !== "none" || endMarkerUrl !== "none";
 
+    // Основной путь БЕЗ маркеров
     const path = document.createElementNS(SVG_NS, "path");
     path.setAttribute("d", dString);
     path.setAttribute("class", "connection-line" + (state.state.selectedConnectionId === conn.id ? " selected" : ""));
     path.setAttribute("stroke", strokeColor);
     path.setAttribute("stroke-width", strokeW);
     if (dash !== "none") path.setAttribute("stroke-dasharray", dash);
-    if (startMarkerUrl !== "none") path.setAttribute("marker-start", startMarkerUrl);
-    if (endMarkerUrl !== "none") path.setAttribute("marker-end", endMarkerUrl);
     group.appendChild(path);
 
+    // Подсветка для выделенной связи (под маркерами)
     if (state.state.selectedConnectionId === conn.id) {
       const glow = document.createElementNS(SVG_NS, "path");
       glow.setAttribute("d", dString);
@@ -1841,6 +1848,19 @@ const renderer = (() => {
       group.appendChild(glow);
     }
 
+    // Верхний невидимый путь ТОЛЬКО для маркеров – всегда над линией и подсветкой
+    if (hasMarker) {
+      const markerPath = document.createElementNS(SVG_NS, "path");
+      markerPath.setAttribute("d", dString);
+      markerPath.setAttribute("stroke", "transparent"); // прозрачная линия, маркеры видны
+      markerPath.setAttribute("fill", "none");
+      if (startMarkerUrl !== "none") markerPath.setAttribute("marker-start", startMarkerUrl);
+      if (endMarkerUrl !== "none") markerPath.setAttribute("marker-end", endMarkerUrl);
+      markerPath.setAttribute("pointer-events", "none");
+      group.appendChild(markerPath);
+    }
+
+    // Зона клика поверх всего
     const hit = document.createElementNS(SVG_NS, "path");
     hit.setAttribute("d", dString);
     hit.setAttribute("class", "connection-hit");
@@ -2435,7 +2455,7 @@ const renderer = (() => {
     return allPts;
   }
 
-  function _findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen) {
+function _findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen) {
     let bestDist = Infinity, bestT = 0, insertIdx = 0;
     let cumDist = 0;
     for (let j = 0; j < allAbsPoints.length - 1; j++) {
@@ -2452,35 +2472,63 @@ const renderer = (() => {
     return { insertIdx: Math.min(insertIdx, allAbsPoints.length - 2), bestT };
   }
 
-  function addWaypointFromEvent(e, connId) {
+function addWaypointFromEvent(e, connId) {
     const conn = state.state.connections.find(c => c.id === connId);
     if (!conn) return;
     const wsRect = canvasWrapper.getBoundingClientRect();
     const mouseX = (e.clientX - wsRect.left) / state.state.zoom;
     const mouseY = (e.clientY - wsRect.top) / state.state.zoom;
 
+    // Получаем точки начала и конца
     const points = _getConnectionStartEndPoints(conn);
     if (!points) return;
     const { startPt, endPt } = points;
 
-    const waypoints = conn.waypoints || [];
-    const tempPts = [startPt];
-    for (let wp of waypoints) {
-      if (wp.t !== undefined) continue;
-      let ax = wp.offsetX, ay = wp.offsetY;
-      if (wp.blockId) { const b = state.getBlock(wp.blockId); if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; } }
-      tempPts.push({ x: ax, y: ay, style: wp.style || {} });
+    // Строим полную кривую (с существующими waypoints)
+    const pathData = buildConnectionPath(conn);
+    if (!pathData) return;
+    const totalLen = pathData.totalLen;
+    const tempPath = document.createElementNS(SVG_NS, "path");
+    tempPath.setAttribute("d", pathData.d);
+
+    // Ищем ближайшую точку на кривой к мыши
+    let bestDist = Infinity, bestT = 0;
+    for (let l = 0; l <= totalLen; l += 1) {
+        const pt = tempPath.getPointAtLength(l);
+        const d = Math.hypot(mouseX - pt.x, mouseY - pt.y);
+        if (d < bestDist) {
+            bestDist = d;
+            bestT = l / totalLen;
+        }
     }
-    tempPts.push(endPt);
 
-    const stTan = { top:{x:0,y:-1}, bottom:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} }[startPt.side||'right'] || {x:1,y:0};
-    const edTan = { top:{x:0,y:-1}, bottom:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} }[endPt.side||'left'] || {x:-1,y:0};
-    const edTanInv = { x: -edTan.x, y: -edTan.y };
-    const curve = buildCurvePath(tempPts, stTan, edTanInv);
-    const totalLen = curve.totalLen;
-
-    const allAbsPoints = _getAbsoluteWaypointsFromRelative(conn, startPt, endPt, curve);
-    const { insertIdx, bestT } = _findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen);
+    // Определяем индекс вставки: ищем первую существующую точку, у которой t > bestT
+    const waypoints = conn.waypoints || [];
+    let insertIdx = waypoints.length; // по умолчанию в конец
+    for (let i = 0; i < waypoints.length; i++) {
+        const wp = waypoints[i];
+        let wpT = wp.t;
+        if (wpT === undefined) {
+            // абсолютная точка: вычисляем её t на кривой
+            let ax = wp.offsetX, ay = wp.offsetY;
+            if (wp.blockId) {
+                const b = state.getBlock(wp.blockId);
+                if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; }
+            }
+            // находим ближайшую длину кривой к этим координатам
+            let minDist = Infinity, tEst = 0;
+            for (let l = 0; l <= totalLen; l += 1) {
+                const pt = tempPath.getPointAtLength(l);
+                const d = Math.hypot(ax - pt.x, ay - pt.y);
+                if (d < minDist) { minDist = d; tEst = l / totalLen; }
+            }
+            wpT = tEst;
+        }
+        if (wpT > bestT) {
+            insertIdx = i;
+            break;
+        }
+    }
 
     const newWaypoint = { t: bestT, style: {} };
     const newWaypoints = [...waypoints];
@@ -2491,7 +2539,7 @@ const renderer = (() => {
     events.emit("state:changed");
     history.push(HistoryActions.waypointAdd(connId, newWaypoint, insertIdx));
     showToast("Добавлена промежуточная точка", "info");
-  }
+}
 
   function _onConnectionDoubleClick(e) {
     const hit = e.target.closest(".connection-hit");
@@ -2520,16 +2568,18 @@ const renderer = (() => {
     showToast("Связь удалена", "info");
   }
 
-  function deleteSelectedWaypoint() {
+function deleteSelectedWaypoint() {
     const sel = state.state.selectedWaypoint;
     if (!sel) return false;
     const conn = state.state.connections.find(c => c.id === sel.connId);
     if (!conn || !conn.waypoints || !conn.waypoints[sel.index]) return false;
     const wp = conn.waypoints[sel.index];
+    const connId = sel.connId; // запоминаем ID связи
     conn.waypoints.splice(sel.index, 1);
     state.state.selectedWaypoint = null;
+    state.selectConnection(connId); // выделяем связь вместо точки
     events.emit("state:changed");
-    history.push(HistoryActions.waypointRemove(sel.connId, wp, sel.index));
+    history.push(HistoryActions.waypointRemove(connId, wp, sel.index));
     showToast("Точка удалена", "info");
     return true;
   }
@@ -3445,6 +3495,10 @@ function Y(e, t, n) {
     const tGroup = document.getElementById("wpTPositionGroup");
     if (tGroup) {
         tGroup.style.display = wpAbs ? "none" : "";
+    }
+    const advGroup = document.getElementById("wpAdvancedGroup");
+    if (advGroup) {
+        advGroup.style.display = wpAbs ? "" : "none";
     }
     document.getElementById("waypointPanel").dataset.connId = t;
     document.getElementById("waypointPanel").dataset.wpIndex = n;
