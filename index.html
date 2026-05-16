@@ -42,7 +42,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   top: 100%;
   left: 0;
   width: 100%;
-  height: 14px;          /* перекроет зазор до меню (было 54px, кнопка ~40px) */
+  height: 14px;
   background: transparent;
   pointer-events: auto;
 }
@@ -197,7 +197,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 
 .toast-container {
   position: fixed;
-  bottom: 160px;  /* достаточно высоко, чтобы не задевать миникарту (128px + отступ) */
+  bottom: 160px;
   right: 24px;
   z-index: var(--z-toast);
   display: flex;
@@ -654,7 +654,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   top: 100%;
   left: 0;
   background: var(--surface);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px;
   z-index: 402;
@@ -681,6 +681,81 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .wp-advanced-dropdown input[type="range"] {
   width: 100%;
   margin: 2px 0;
+}
+
+/.wp-advanced-dropdown .range-pill {
+  position: relative;
+  height: 30px;
+  background: var(--bg);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  margin: 4px 0;
+  overflow: visible;
+}
+.wp-advanced-dropdown .range-pill label {
+  font-size: 10px;
+  color: #ffffff;
+  width: 75px;
+  flex-shrink: 0;
+  text-align: right;
+  margin-right: 8px;
+}
+.wp-advanced-dropdown .range-pill input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 6px;
+  background: transparent;
+  border-radius: 3px;
+  outline: none;
+  position: relative;
+  z-index: 1;
+  margin: 0 4px;
+}
+.wp-advanced-dropdown .range-pill input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent) !important;
+}
+.wp-advanced-dropdown .range-pill input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent) !important;
+}
+.wp-advanced-dropdown .range-pill input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  background: var(--accent) !important;
+  border: 1px solid #fff !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  cursor: pointer;
+  margin-top: -7px;
+}
+.wp-advanced-dropdown .range-pill input[type="range"]::-moz-range-thumb {
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  background: var(--accent) !important;
+  border: 1px solid #fff !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  cursor: pointer;
+}
+.wp-advanced-dropdown .range-pill output {
+  display: none;
+}
+/* Числа больше не показываем */
+.wp-advanced-dropdown .range-pill output {
+  display: none;
+}
+
+/* Скрываем старые лейблы внутри дропдауна */
+.wp-advanced-dropdown > label {
+  display: none !important;
 }
 </style>
 </head>
@@ -801,13 +876,22 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
       <span class="drm-icon-slot" data-icon="anchor"></span>
     </button>
     <div class="wp-advanced-dropdown" id="wpAdvancedDropdown">
-      <label>Притяжение <span id="wpMiniTensionVal">0.5</span></label>
-      <input type="range" id="wpMiniTension" min="0" max="1" step="0.1" value="0.5">
-      <label>Асимметрия <span id="wpMiniSkewVal">0</span></label>
-      <input type="range" id="wpMiniSkew" min="-1" max="1" step="0.1" value="0">
-      <label>Доворот <span id="wpMiniAngleVal">0</span>°</label>
-      <input type="range" id="wpMiniAngle" min="-60" max="60" value="0">
-    </div>
+		<div class="range-pill" data-prop="tension">
+			<label>Притяжение</label>
+			<input type="range" id="wpMiniTension" min="-1" max="2" step="0.1" value="0.5">
+			<output id="wpMiniTensionVal">0.5</output>
+		</div>
+		<div class="range-pill" data-prop="skew">
+			<label>Асимметрия</label>
+			<input type="range" id="wpMiniSkew" min="-10" max="10" step="1" value="0">
+			<output id="wpMiniSkewVal">0</output>
+		</div>
+		<div class="range-pill" data-prop="angleAdjust">
+			<label>Доворот</label>
+			<input type="range" id="wpMiniAngle" min="-120" max="120" step="1" value="0">
+			<output id="wpMiniAngleVal">0°</output>
+		</div>
+	</div>
   </div>
   <button id="wpMiniDelete" class="btn" data-tooltip="Удалить точку" style="color:var(--danger);">
     <span class="drm-icon-slot" data-icon="xmark"></span>
@@ -986,7 +1070,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "1.0alpha2";
+const APP_VERSION = "1.0alpha3";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -2600,7 +2684,7 @@ const renderer = (() => {
   }
 
   // ---------- waypoint и label drag ----------
-  function _startWaypointDrag(ev, connId, idx) {
+    function _startWaypointDrag(ev, connId, idx) {
     const conn = state.state.connections.find(c => c.id === connId);
     if (!conn || !conn.waypoints || !conn.waypoints[idx]) return;
     const wp = conn.waypoints[idx];
@@ -2642,8 +2726,7 @@ const renderer = (() => {
         delete curWp.t; delete curWp.snapToLine;
       }
       renderConnections();
-      if (state.state.selectedConnectionId === connId) N(state.state.connections.find(c => c.id === connId));
-      if (state.state.selectedWaypoint?.connId === connId && state.state.selectedWaypoint?.index === idx) Y(curWp, connId, idx);
+      // Раньше здесь вызывалась N и Y – они больше не нужны
     };
 
     const upHandler = () => {
@@ -2848,21 +2931,21 @@ function addWaypointFromEvent(e, connId) {
     showToast("Связь удалена", "info");
   }
 
-function deleteSelectedWaypoint() {
-    const sel = state.state.selectedWaypoint;
-    if (!sel) return false;
-    const conn = state.state.connections.find(c => c.id === sel.connId);
-    if (!conn || !conn.waypoints || !conn.waypoints[sel.index]) return false;
-    const wp = conn.waypoints[sel.index];
-    const connId = sel.connId; // запоминаем ID связи
-    conn.waypoints.splice(sel.index, 1);
-    state.state.selectedWaypoint = null;
-    state.selectConnection(connId); // выделяем связь вместо точки
-    events.emit("state:changed");
-    history.push(HistoryActions.waypointRemove(connId, wp, sel.index));
-    showToast("Точка удалена", "info");
-    return true;
-  }
+	function deleteSelectedWaypoint() {
+		const sel = state.state.selectedWaypoint;
+		if (!sel) return false;
+		const conn = state.state.connections.find(c => c.id === sel.connId);
+		if (!conn || !conn.waypoints || !conn.waypoints[sel.index]) return false;
+		const wp = conn.waypoints[sel.index];
+		const connId = sel.connId; // запоминаем ID связи
+		conn.waypoints.splice(sel.index, 1);
+		state.state.selectedWaypoint = null;
+		state.selectConnection(connId); // выделяем связь вместо точки
+		events.emit("state:changed");
+		history.push(HistoryActions.waypointRemove(connId, wp, sel.index));
+		showToast("Точка удалена", "info");
+		return true;
+	}
 
   // ---------- инициализация соединений (порты) ----------
   function setupConnections() {
@@ -3163,18 +3246,59 @@ state.state.selectedIds.forEach(id => {
 		if (!advDropdown) return;
 		const isAbs = wp.offsetX !== undefined;
 		if (isAbs) {
-			advDropdown.style.display = ''; // убираем inline‑style, разрешаем CSS :hover
+			advDropdown.style.display = '';
 			const style = wp.style || {};
-			document.getElementById('wpMiniTension').value = style.tension !== undefined ? style.tension : 0.5;
-			document.getElementById('wpMiniTensionVal').textContent = style.tension !== undefined ? style.tension : 0.5;
-			document.getElementById('wpMiniSkew').value = style.skew !== undefined ? style.skew : 0;
-			document.getElementById('wpMiniSkewVal').textContent = style.skew !== undefined ? style.skew : 0;
-			document.getElementById('wpMiniAngle').value = style.angleAdjust || 0;
-			document.getElementById('wpMiniAngleVal').textContent = style.angleAdjust || 0;
+			updateRangePill('wpMiniTension', style.tension !== undefined ? style.tension : 0.5);
+			updateRangePill('wpMiniSkew', style.skew !== undefined ? style.skew : 0);
+			updateRangePill('wpMiniAngle', style.angleAdjust || 0);
 		} else {
 			advDropdown.style.display = 'none';
 		}
 	}
+
+	function updateRangePill(inputId, value) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.value = value;
+    const pill = input.closest('.range-pill');
+    if (!pill) return;
+    const output = pill.querySelector('output');
+    if (output) {
+        output.textContent = value + (inputId === 'wpMiniAngle' ? '°' : '');
+    }
+    // Функция позиционирования
+    const setPosition = () => {
+        if (!output) return;
+        const inputWidth = input.clientWidth;
+        if (inputWidth === 0) {
+            requestAnimationFrame(setPosition);
+            return;
+        }
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        const progress = (value - min) / (max - min);
+        const thumbWidth = 28; // диаметр ползунка
+        const left = progress * (inputWidth - thumbWidth) + thumbWidth / 2;
+        output.style.left = left + 'px';
+    };
+    // Вызываем сразу и подстраховываемся таймером
+    setPosition();
+    setTimeout(setPosition, 0);
+    setTimeout(setPosition, 50);
+}
+
+	document.getElementById('wpAdvancedDropdown').addEventListener('input', e => {
+    const input = e.target.closest('input[type="range"]');
+    if (!input) return;
+    const pill = input.closest('.range-pill');
+    if (!pill) return;
+    const prop = pill.dataset.prop;
+    const value = parseFloat(input.value);
+
+    if (currentWpConnId != null && currentWpIdx != null) {
+        T(prop, value, currentWpConnId, currentWpIdx);
+    }
+});
 
     // Показать попап
     function showMiniPopup(ev, connId, idx) {
@@ -3276,29 +3400,6 @@ state.state.selectedIds.forEach(id => {
             }, 50);
         });
     }
-
-	// Обработчики ползунков
-	document.getElementById('wpMiniTension').addEventListener('input', e => {
-		const val = parseFloat(e.target.value);
-		document.getElementById('wpMiniTensionVal').textContent = val;
-		if (currentWpConnId != null && currentWpIdx != null) {
-			T('tension', val, currentWpConnId, currentWpIdx);
-		}
-	});
-	document.getElementById('wpMiniSkew').addEventListener('input', e => {
-		const val = parseFloat(e.target.value);
-		document.getElementById('wpMiniSkewVal').textContent = val;
-		if (currentWpConnId != null && currentWpIdx != null) {
-			T('skew', val, currentWpConnId, currentWpIdx);
-		}
-	});
-	document.getElementById('wpMiniAngle').addEventListener('input', e => {
-		const val = parseInt(e.target.value);
-		document.getElementById('wpMiniAngleVal').textContent = val;
-		if (currentWpConnId != null && currentWpIdx != null) {
-			T('angleAdjust', val, currentWpConnId, currentWpIdx);
-		}
-	});
 
     // ---------- Форма + Размер через сетку ----------
     if (miniShapeBtn && shapeSizeGrid) {
@@ -4194,7 +4295,6 @@ function T(prop, value, optConnId, optWpIdx) {
         history.push(HistoryActions.waypointStyle(connId, wpIdx, prop, oldStyle[prop], value));
     }
     renderer.renderConnections();
-    Y(wp, connId, wpIdx);
 }
 
 // ====================== 9. КОНТРОЛЛЕРЫ И ИНИЦИАЛИЗАЦИЯ ======================
@@ -4497,13 +4597,6 @@ let interaction = new class {
             if (connPanel.classList.contains("open")) {
                 connPanel.classList.remove("open");
                 state.state.selectedConnectionId = null;
-                events.emit("state:changed");
-                return;
-            }
-            const wpPanel = document.getElementById("waypointPanel");
-            if (wpPanel.classList.contains("open")) {
-                wpPanel.classList.remove("open");
-                state.state.selectedWaypoint = null;
                 events.emit("state:changed");
                 return;
             }
@@ -4817,100 +4910,7 @@ document.querySelectorAll("#connectionPanel .section-header").forEach(e => {
     e.addEventListener("click", () => e.parentElement.classList.toggle("collapsed"));
 });
 
-// Обработчики панели waypoint
-document.getElementById("wpColor").addEventListener("input", e => T("color", e.target.value));
-const wpShapeSelector = document.getElementById("wpShapeSelector");
-if (wpShapeSelector) {
-    wpShapeSelector.addEventListener("click", e => {
-        const btn = e.target.closest(".visual-option");
-        if (!btn) return;
-        wpShapeSelector.querySelectorAll(".visual-option").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        T("shape", btn.dataset.value);
-    });
-}
-document.getElementById("wpSizeSelector").addEventListener("click", e => {
-    const t = e.target.closest(".size-option");
-    if (t) T("size", t.dataset.wpSize);
-});
-document.getElementById("wpTension").addEventListener("input", e => {
-    const t = parseFloat(e.target.value);
-    document.getElementById("wpTensionVal").textContent = t;
-    T("tension", t);
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (!isNaN(wpIdx) && connId) {
-        let conn = state.state.connections.find(c => c.id === connId);
-        if (conn && conn.waypoints && conn.waypoints[wpIdx]) {
-            Y(conn.waypoints[wpIdx], connId, wpIdx);
-        }
-    }
-});
-document.getElementById("wpT").addEventListener("input", e => {
-    const val = parseInt(e.target.value);
-    document.getElementById("wpTVal").textContent = val + '%';
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (isNaN(wpIdx) || !connId) return;
-    let conn = state.state.connections.find(c => c.id === connId);
-    if (!conn || !conn.waypoints || !conn.waypoints[wpIdx]) return;
-    conn.waypoints[wpIdx].t = val / 100;
-    renderer.renderConnections();
-    events.emit("state:changed");
-    Y(conn.waypoints[wpIdx], connId, wpIdx);
-});
-document.getElementById("wpSkew").addEventListener("input", e => {
-    const t = parseFloat(e.target.value);
-    document.getElementById("wpSkewVal").textContent = t;
-    T("skew", t);
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (!isNaN(wpIdx) && connId) {
-        let conn = state.state.connections.find(c => c.id === connId);
-        if (conn && conn.waypoints && conn.waypoints[wpIdx]) {
-            Y(conn.waypoints[wpIdx], connId, wpIdx);
-        }
-    }
-});
-document.getElementById("wpAngle").addEventListener("input", e => {
-    const t = parseInt(e.target.value);
-    document.getElementById("wpAngleVal").textContent = t;
-    T("angleAdjust", t);
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const wpIdx = parseInt(panel.dataset.wpIndex);
-    if (!isNaN(wpIdx) && connId) {
-        let conn = state.state.connections.find(c => c.id === connId);
-        if (conn && conn.waypoints && conn.waypoints[wpIdx]) {
-            Y(conn.waypoints[wpIdx], connId, wpIdx);
-        }
-    }
-});
-document.getElementById("closeWaypointPanel").addEventListener("click", () => {
-    document.getElementById("waypointPanel").classList.remove("open");
-    state.state.selectedWaypoint = null;
-    events.emit("state:changed");
-});
-document.getElementById("btnDeleteWaypoint").addEventListener("click", () => {
-    if (renderer.deleteSelectedWaypoint()) {
-        document.getElementById("waypointPanel").classList.remove("open");
-        showToast("Точка удалена", "info");
-        return true;
-    }
-});
-document.getElementById("wpToggleMode").addEventListener("click", () => {
-    const panel = document.getElementById("waypointPanel");
-    const connId = panel.dataset.connId;
-    const idx = parseInt(panel.dataset.wpIndex);
-    if (isNaN(idx) || !connId) return;
-    toggleWaypointMode(connId, idx);
-});
-document.querySelectorAll("#waypointPanel .section-header").forEach(e => {
-    e.addEventListener("click", () => e.parentElement.classList.toggle("collapsed"));
-});
+
 
 // Обработчики тулбара
 document.getElementById("btnEdit").addEventListener("click", () => {
