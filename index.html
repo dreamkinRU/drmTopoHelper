@@ -641,6 +641,47 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   background: var(--bg);
   border: 2px solid currentColor;
 }
+/* Обёртка кнопки и дропдауна */
+.wp-adv-toggle-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* Выпадающий блок с ползунками */
+.wp-advanced-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 6px;
+  z-index: 402;
+  box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  min-width: 160px;
+  font-size: 11px;
+  color: var(--fg);
+}
+
+/* Показывать при наведении на обёртку */
+.wp-adv-toggle-wrapper:hover .wp-advanced-dropdown {
+  display: block;
+}
+
+.wp-advanced-dropdown label {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wp-advanced-dropdown input[type="range"] {
+  width: 100%;
+  margin: 2px 0;
+}
 </style>
 </head>
 <body>
@@ -753,13 +794,21 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     <button id="wpMiniShape" data-tooltip="Форма и размер точки">
       <span id="wpMiniShapeIcon"></span>
     </button>
-    <div class="wp-shape-size-grid" id="wpShapeSizeGrid">
-      <!-- Ячейки заполняются динамически -->
+    <div class="wp-shape-size-grid" id="wpShapeSizeGrid"></div>
+  </div>
+  <div class="wp-adv-toggle-wrapper">
+    <button id="wpMiniToggleMode" class="btn" data-tooltip="Переключить абсолютную/относительную точку">
+      <span class="drm-icon-slot" data-icon="anchor"></span>
+    </button>
+    <div class="wp-advanced-dropdown" id="wpAdvancedDropdown">
+      <label>Притяжение <span id="wpMiniTensionVal">0.5</span></label>
+      <input type="range" id="wpMiniTension" min="0" max="1" step="0.1" value="0.5">
+      <label>Асимметрия <span id="wpMiniSkewVal">0</span></label>
+      <input type="range" id="wpMiniSkew" min="-1" max="1" step="0.1" value="0">
+      <label>Доворот <span id="wpMiniAngleVal">0</span>°</label>
+      <input type="range" id="wpMiniAngle" min="-60" max="60" value="0">
     </div>
   </div>
-  <button id="wpMiniToggleMode" class="btn" data-tooltip="Переключить абсолютную/относительную точку">
-    <span class="drm-icon-slot" data-icon="anchor"></span>
-  </button>
   <button id="wpMiniDelete" class="btn" data-tooltip="Удалить точку" style="color:var(--danger);">
     <span class="drm-icon-slot" data-icon="xmark"></span>
   </button>
@@ -937,7 +986,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "1.0alpha1";
+const APP_VERSION = "1.0alpha2";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -3109,6 +3158,24 @@ state.state.selectedIds.forEach(id => {
     miniPopup.addEventListener("pointerdown", e => e.stopPropagation());
     miniPopup.addEventListener("click", e => e.stopPropagation());
 
+	function updateAdvDropdown(wp) {
+		const advDropdown = document.getElementById('wpAdvancedDropdown');
+		if (!advDropdown) return;
+		const isAbs = wp.offsetX !== undefined;
+		if (isAbs) {
+			advDropdown.style.display = ''; // убираем inline‑style, разрешаем CSS :hover
+			const style = wp.style || {};
+			document.getElementById('wpMiniTension').value = style.tension !== undefined ? style.tension : 0.5;
+			document.getElementById('wpMiniTensionVal').textContent = style.tension !== undefined ? style.tension : 0.5;
+			document.getElementById('wpMiniSkew').value = style.skew !== undefined ? style.skew : 0;
+			document.getElementById('wpMiniSkewVal').textContent = style.skew !== undefined ? style.skew : 0;
+			document.getElementById('wpMiniAngle').value = style.angleAdjust || 0;
+			document.getElementById('wpMiniAngleVal').textContent = style.angleAdjust || 0;
+		} else {
+			advDropdown.style.display = 'none';
+		}
+	}
+
     // Показать попап
     function showMiniPopup(ev, connId, idx) {
         const conn = state.state.connections.find(c => c.id === connId);
@@ -3120,10 +3187,12 @@ state.state.selectedIds.forEach(id => {
         const size = style.size || "medium";
         const isAbs = wp.offsetX !== undefined;
 
+		// Обновление настроек
+		updateAdvDropdown(wp);
+
         if (miniColor) miniColor.value = color;
         if (miniToggle) {
             miniToggle.innerHTML = renderIconHTML(isAbs ? "anchor" : "percent");
-            miniToggle.title = isAbs ? "Абсолютная точка" : "Относительная точка";
         }
         updateMainIcon(shape, size, color);
         buildGrid(shape, size, color);
@@ -3202,10 +3271,34 @@ state.state.selectedIds.forEach(id => {
                     const wp = conn.waypoints[currentWpIdx];
                     const isAbs = wp.offsetX !== undefined;
                     miniToggle.innerHTML = renderIconHTML(isAbs ? "anchor" : "percent");
+					updateAdvDropdown(wp);
                 }
             }, 50);
         });
     }
+
+	// Обработчики ползунков
+	document.getElementById('wpMiniTension').addEventListener('input', e => {
+		const val = parseFloat(e.target.value);
+		document.getElementById('wpMiniTensionVal').textContent = val;
+		if (currentWpConnId != null && currentWpIdx != null) {
+			T('tension', val, currentWpConnId, currentWpIdx);
+		}
+	});
+	document.getElementById('wpMiniSkew').addEventListener('input', e => {
+		const val = parseFloat(e.target.value);
+		document.getElementById('wpMiniSkewVal').textContent = val;
+		if (currentWpConnId != null && currentWpIdx != null) {
+			T('skew', val, currentWpConnId, currentWpIdx);
+		}
+	});
+	document.getElementById('wpMiniAngle').addEventListener('input', e => {
+		const val = parseInt(e.target.value);
+		document.getElementById('wpMiniAngleVal').textContent = val;
+		if (currentWpConnId != null && currentWpIdx != null) {
+			T('angleAdjust', val, currentWpConnId, currentWpIdx);
+		}
+	});
 
     // ---------- Форма + Размер через сетку ----------
     if (miniShapeBtn && shapeSizeGrid) {
