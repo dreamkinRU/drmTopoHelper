@@ -261,25 +261,105 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .visual-option.active svg{stroke:#0c0c0c}
 .visual-option.marker-opt svg{stroke:none;fill:currentColor}
 
-#connectionPanel,#waypointPanel{position:fixed;top:64px;right:0;width:260px;bottom:0;background:var(--surface);border-left:1px solid var(--border);z-index:var(--z-context-menu);padding:16px;transform:translateX(100%);transition:transform .2s ease;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;flex-direction:column}
-#connectionPanel.open,#waypointPanel.open{transform:translateX(0)}
-#connectionPanel h3,#waypointPanel h3{font-size:14px;font-weight:600;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center}
-#connectionPanel .section,#waypointPanel .section{margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px}
-#connectionPanel .section:last-child,#waypointPanel .section:last-child{border-bottom:none;margin-bottom:0}
-#connectionPanel .section-header,#waypointPanel .section-header{cursor:pointer;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-#connectionPanel .section-header .toggle-icon,#waypointPanel .section-header .toggle-icon{transition:transform .2s;font-size:10px}
-#connectionPanel .section.collapsed .section-content,#waypointPanel .section.collapsed .section-content{display:none}
-#connectionPanel .section.collapsed .toggle-icon,#waypointPanel .section.collapsed .toggle-icon{transform:rotate(-90deg)}
-#connectionPanel label,#waypointPanel label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;margin-top:8px}
-#connectionPanel input[type="color"],#waypointPanel input[type="color"]{width:32px;height:32px;border:none;background:none;cursor:pointer;vertical-align:middle}
-#connectionPanel input[type="range"],#waypointPanel input[type="range"]{width:100%;margin:4px 0}
-#connectionPanel input[type="text"],#connectionPanel select,#waypointPanel select{width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-family:inherit;font-size:13px;outline:none}
-#connectionPanel input[type="text"]:focus,#connectionPanel select:focus,#waypointPanel select:focus{border-color:var(--accent)}
-#connectionPanel .btn-row{display:flex;gap:8px;margin-top:12px}
-#waypointPanel .size-selector{display:flex;gap:4px;background:var(--bg);border-radius:8px;padding:3px;border:1px solid var(--border)}
-#waypointPanel .size-option{padding:5px 12px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;color:var(--muted);transition:all .2s var(--easing);border:none;background:none;font-family:inherit}
-#waypointPanel .size-option:hover{color:var(--accent);background:rgba(232,160,48,.15)}
-#waypointPanel .size-option.active{background:var(--accent);color:#0c0c0c}
+#connectionPanel {
+  position: fixed;
+  top: 64px;
+  right: 0;
+  width: 260px;
+  bottom: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: var(--z-context-menu);
+  padding: 16px;
+  transform: translateX(100%);
+  transition: transform .2s ease;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  display: flex;
+  flex-direction: column;
+}
+#connectionPanel.open {
+  transform: translateX(0);
+}
+#connectionPanel h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#connectionPanel .section {
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+#connectionPanel .section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+#connectionPanel .section-header {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#connectionPanel .section-header .toggle-icon {
+  transition: transform .2s;
+  font-size: 10px;
+}
+#connectionPanel .section.collapsed .section-content {
+  display: none;
+}
+#connectionPanel .section.collapsed .toggle-icon {
+  transform: rotate(-90deg);
+}
+#connectionPanel label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  margin-top: 8px;
+}
+#connectionPanel input[type="color"] {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+#connectionPanel input[type="range"] {
+  width: 100%;
+  margin: 4px 0;
+}
+#connectionPanel input[type="text"],
+#connectionPanel select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+#connectionPanel input[type="text"]:focus,
+#connectionPanel select:focus {
+  border-color: var(--accent);
+}
+#connectionPanel .btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
 
 .waypoint-circle{stroke:var(--surface);stroke-width:2;cursor:pointer;pointer-events:auto;transition:fill .1s;z-index:2}
 .waypoint-circle:not(.selected):hover{fill:#fff}
@@ -1013,48 +1093,6 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="btn-row"><button class="btn btn-danger" id="btnDeleteConnection">Удалить связь</button></div>
 </div>
 
-<div id="waypointPanel">
-<h3>Свойства точки <button class="btn" style="padding:2px 8px;font-size:11px" id="closeWaypointPanel">✕</button></h3>
-<div class="section" id="wpSecAppearance">
-<div class="section-header"><span>Оформление</span><span class="toggle-icon">▼</span></div>
-<div class="section-content">
-<label>Цвет</label><input type="color" id="wpColor" value="#e8a030">
-<label>Форма</label>
-<div class="visual-selector" id="wpShapeSelector">
-<button class="visual-option marker-opt active" data-value="circle" title="Круг"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5"/></svg></button>
-<button class="visual-option marker-opt" data-value="square" title="Квадрат"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg></button>
-<button class="visual-option marker-opt" data-value="diamond" title="Ромб"><svg viewBox="0 0 20 20"><polygon points="10,3 17,10 10,17 3,10"/></svg></button>
-</div>
-<label>Размер</label>
-<div class="size-selector" id="wpSizeSelector">
-<button class="size-option active" data-wp-size="small">S</button>
-<button class="size-option" data-wp-size="medium">M</button>
-<button class="size-option" data-wp-size="large">L</button>
-</div>
-</div>
-</div>
-<div class="section" id="wpSecCurve">
-<div class="section-header"><span>Настройки</span><span class="toggle-icon">▼</span></div>
-<div class="section-content">
-    <div id="wpTPositionGroup">
-      <label>Позиция (<span id="wpTVal">50%</span>)</label>
-      <input type="range" id="wpT" min="0" max="100" step="1" value="50">
-    </div>
-    <div id="wpAdvancedGroup">
-      <label>Притяжение (<span id="wpTensionVal">0.5</span>)</label>
-      <input type="range" id="wpTension" min="0" max="1" step="0.1" value="0.5">
-      <label>Асимметрия (<span id="wpSkewVal">0</span>)</label>
-      <input type="range" id="wpSkew" min="-1" max="1" step="0.1" value="0">
-      <label>Доворот касат. (<span id="wpAngleVal">0</span>°)</label>
-      <input type="range" id="wpAngle" min="-60" max="60" value="0">
-    </div>
-    <label>Режим точки</label>
-    <button class="btn" id="wpToggleMode" style="margin-bottom:8px;">Сделать абсолютной</button>
-</div>
-</div>
-<div class="btn-row"><button class="btn btn-danger" id="btnDeleteWaypoint">Удалить точку</button></div>
-</div>
-
 <div class="modal-overlay" id="errorOverlay">
   <div class="error-dialog">
     <h3><span class="drm-icon-slot" data-icon="circle_exclamation"></span>Ошибка загрузки</h3>
@@ -1070,7 +1108,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "1.0alpha3";
+const APP_VERSION = "1.0alpha4";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -3103,20 +3141,11 @@ function addWaypointFromEvent(e, connId) {
     if (!rafId) rafId = requestAnimationFrame(() => { rafId = null; updateCanvasSize(); if (zoomController) zoomController.updateMinimap(); });
     renderConnections();
     const connPanel = document.getElementById("connectionPanel");
-    const wpPanel = document.getElementById("waypointPanel");
     if (hasConn) {
       const conn = state.state.connections.find(c => c.id === state.state.selectedConnectionId);
       if (conn) { N(conn); connPanel.classList.add("open"); } else connPanel.classList.remove("open");
-      wpPanel.classList.remove("open");
-    } else if (hasWP) {
-      const wpSel = state.state.selectedWaypoint;
-      const conn = state.state.connections.find(c => c.id === wpSel.connId);
-      const wp = conn ? conn.waypoints[wpSel.index] : null;
-      if (wp) { Y(wp, wpSel.connId, wpSel.index); wpPanel.classList.add("open"); } else wpPanel.classList.remove("open");
-      connPanel.classList.remove("open");
     } else {
       connPanel.classList.remove("open");
-      wpPanel.classList.remove("open");
     }
     // Визуально обновляем выделение блоков (без рекурсии)
 canvasWrapper.querySelectorAll(".block.selected").forEach(el => el.classList.remove("selected"));
@@ -3324,12 +3353,6 @@ state.state.selectedIds.forEach(id => {
         currentWpConnId = connId;
         currentWpIdx = idx;
 
-        const panel = document.getElementById("waypointPanel");
-        if (panel) {
-            panel.dataset.connId = connId;
-            panel.dataset.wpIndex = idx;
-        }
-
         const circle = ev.target.closest(".waypoint-circle");
         if (!circle) return;
         const rect = circle.getBoundingClientRect();
@@ -3378,9 +3401,6 @@ state.state.selectedIds.forEach(id => {
             const size = wp.style.size || "medium";
             updateMainIcon(shape, size, e.target.value);
             buildGrid(shape, size, e.target.value);
-            if (document.getElementById("waypointPanel")?.classList.contains("open")) {
-                Y(wp, currentWpConnId, currentWpIdx);
-            }
         });
     }
 
@@ -3449,11 +3469,6 @@ state.state.selectedIds.forEach(id => {
             if (currentWpConnId == null || currentWpIdx == null) return;
             const shape = btn.dataset.shape;
             const size = btn.dataset.size;
-            const panel = document.getElementById("waypointPanel");
-            if (panel) {
-                panel.dataset.connId = currentWpConnId;
-                panel.dataset.wpIndex = currentWpIdx;
-            }
             T("shape", shape);
             T("size", size);
             originalShape = null; originalSize = null;
@@ -4225,42 +4240,7 @@ function toggleWaypointMode(connId, idx) {
     showToast(wp.t !== undefined ? "Точка стала относительной" : "Точка стала абсолютной", "info");
 }
 
-function Y(e, t, n) {
-    const o = e.style || {};
-    document.getElementById("wpColor").value = o.color || "#e8a030";
-    const shape = o.shape || "circle";
-    document.querySelectorAll("#wpShapeSelector .visual-option").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.value === shape);
-    });
-    const i = o.size || "medium";
-    document.querySelectorAll("#wpSizeSelector .size-option").forEach(e => {
-        e.classList.toggle("active", e.dataset.wpSize === i);
-    });
-    document.getElementById("wpT").value = e.t !== undefined ? Math.round(e.t * 100) : 50;
-    document.getElementById("wpTVal").textContent = (e.t !== undefined ? Math.round(e.t * 100) : 50) + '%';
-    document.getElementById("wpTension").value = o.tension !== undefined ? o.tension : 0.5;
-    document.getElementById("wpTensionVal").textContent = o.tension !== undefined ? o.tension : 0.5;
-    document.getElementById("wpSkew").value = o.skew !== undefined ? o.skew : 0;
-    document.getElementById("wpSkewVal").textContent = o.skew !== undefined ? o.skew : 0;
-    document.getElementById("wpAngle").value = o.angleAdjust || 0;
-    document.getElementById("wpAngleVal").textContent = o.angleAdjust || 0;
-    const wpAbs = (e.offsetX !== undefined);
-    const toggleBtn = document.getElementById("wpToggleMode");
-    if (toggleBtn) {
-        toggleBtn.style.display = "";
-        toggleBtn.textContent = wpAbs ? "Сделать относительной" : "Сделать абсолютной";
-    }
-    const tGroup = document.getElementById("wpTPositionGroup");
-    if (tGroup) {
-        tGroup.style.display = wpAbs ? "none" : "";
-    }
-    const advGroup = document.getElementById("wpAdvancedGroup");
-    if (advGroup) {
-        advGroup.style.display = wpAbs ? "" : "none";
-    }
-    document.getElementById("waypointPanel").dataset.connId = t;
-    document.getElementById("waypointPanel").dataset.wpIndex = n;
-}
+
 
 function X(e, t) {
     let n = state.state.selectedConnectionId;
@@ -4274,17 +4254,8 @@ function X(e, t) {
     history.push(HistoryActions.connectionProp(n, e, i, t));
 }
 
-function T(prop, value, optConnId, optWpIdx) {
-    let connId, wpIdx;
-    if (optConnId !== undefined && optWpIdx !== undefined) {
-        connId = optConnId;
-        wpIdx = optWpIdx;
-    } else {
-        const panel = document.getElementById("waypointPanel");
-        connId = panel.dataset.connId;
-        wpIdx = parseInt(panel.dataset.wpIndex);
-    }
-    if (isNaN(wpIdx) || !connId) return;
+function T(prop, value, connId, wpIdx) {
+    if (wpIdx === undefined || connId === undefined) return;
     let conn = state.state.connections.find(c => c.id === connId);
     if (!conn || !conn.waypoints || !conn.waypoints[wpIdx]) return;
     let wp = conn.waypoints[wpIdx];
@@ -4620,8 +4591,7 @@ let interaction = new class {
                 !e.target.closest(".connection-hit") &&
                 !e.target.closest(".waypoint-circle") &&
                 !e.target.closest(".label-drag-handle") &&
-                !e.target.closest("#connectionPanel") &&
-                !e.target.closest("#waypointPanel")) {
+                !e.target.closest("#connectionPanel") ) {
                 state.selectConnection(null);
                 state.selectWaypoint(null, null);
                 renderer.updateGeneralUI();
