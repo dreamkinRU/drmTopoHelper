@@ -271,7 +271,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 #connectionPanel .section.collapsed .section-content,#waypointPanel .section.collapsed .section-content{display:none}
 #connectionPanel .section.collapsed .toggle-icon,#waypointPanel .section.collapsed .toggle-icon{transform:rotate(-90deg)}
 #connectionPanel label,#waypointPanel label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;margin-top:8px}
-#connectionPanel input[type="color"],#waypointPanel input[type="color"]{width:32px;height:24px;border:none;background:none;cursor:pointer;vertical-align:middle}
+#connectionPanel input[type="color"],#waypointPanel input[type="color"]{width:32px;height:32px;border:none;background:none;cursor:pointer;vertical-align:middle}
 #connectionPanel input[type="range"],#waypointPanel input[type="range"]{width:100%;margin:4px 0}
 #connectionPanel input[type="text"],#connectionPanel select,#waypointPanel select{width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-family:inherit;font-size:13px;outline:none}
 #connectionPanel input[type="text"]:focus,#connectionPanel select:focus,#waypointPanel select:focus{border-color:var(--accent)}
@@ -464,7 +464,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   position: absolute;
   z-index: 400;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent);
   border-radius: 8px;
   padding: 4px;
   display: flex;
@@ -474,12 +474,13 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   pointer-events: auto;
 }
 .wp-mini-popup input[type="color"] {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 25px;
   border: none;
   background: none;
   cursor: pointer;
   padding: 0;
+  border-radius: 0; 
 }
 .wp-mini-popup button {
   background: transparent;
@@ -499,7 +500,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 #wpMiniShape {
   border: none;
   background: var(--bg);
-  padding: 3px;
+  padding: 0px;
   border-radius: 4px;
 }
 #wpMiniShapeIcon {
@@ -991,10 +992,9 @@ const SVG_ICONS = {
   'square-shape': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16"/></svg>',
   'diamond-shape': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,12 12,22 2,12"/></svg>',
   'triangle-shape': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,22 2,22"/></svg>',
-  anchor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><path d="M12 8 L12 22 M8 14 L16 14"/></svg>',
-  percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/><line x1="17" y1="7" x2="7" y2="17"/></svg>',
+  anchor: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21 15.9991V11.9991C20.9994 10.6541 20.696 9.32654 20.1125 8.11477C19.5289 6.90301 18.6801 5.83812 17.629 4.99906H20.277C20.4986 5.37668 20.8385 5.67071 21.2441 5.83565C21.6497 6.00058 22.0983 6.02723 22.5206 5.91145C22.9429 5.79567 23.3152 5.54394 23.5799 5.1952C23.8447 4.84647 23.9871 4.42019 23.9851 3.98236C23.9831 3.54452 23.8369 3.11954 23.569 2.77321C23.3011 2.42687 22.9266 2.1785 22.5033 2.06652C22.08 1.95455 21.6316 1.98523 21.2275 2.15381C20.8235 2.32239 20.4862 2.61947 20.268 2.99906H15.858C15.6397 2.14148 15.1419 1.38107 14.4433 0.837956C13.7446 0.294846 12.8849 0 12 0C11.1151 0 10.2554 0.294846 9.55672 0.837956C8.85806 1.38107 8.36027 2.14148 8.142 2.99906H3.723C3.50139 2.62145 3.16148 2.32742 2.75589 2.16248C2.3503 1.99755 1.90166 1.9709 1.4794 2.08668C1.05714 2.20246 0.684827 2.45419 0.42008 2.80293C0.155333 3.15166 0.0129225 3.57793 0.0148928 4.01577C0.0168631 4.45361 0.163104 4.87859 0.430979 5.22492C0.698853 5.57126 1.07342 5.81963 1.4967 5.9316C1.91999 6.04358 2.36837 6.0129 2.77246 5.84432C3.17655 5.67574 3.51379 5.37866 3.732 4.99906H6.371C5.31986 5.83812 4.47106 6.90301 3.88751 8.11477C3.30395 9.32654 3.00062 10.6541 3 11.9991V15.9991H0V20.9991C0 21.7947 0.31607 22.5578 0.87868 23.1204C1.44129 23.683 2.20435 23.9991 3 23.9991H8V15.9991H5V11.9991C5.00137 10.7679 5.32777 9.55885 5.9462 8.49425C6.56463 7.42964 7.45317 6.54717 8.522 5.93606C8.8631 6.56055 9.36604 7.08167 9.97802 7.44472C10.59 7.80777 11.2884 7.99936 12 7.99936C12.7116 7.99936 13.41 7.80777 14.022 7.44472C14.634 7.08167 15.1369 6.56055 15.478 5.93606C16.5468 6.54717 17.4354 7.42964 18.0538 8.49425C18.6722 9.55885 18.9986 10.7679 19 11.9991V15.9991H16V23.9991H21C21.7956 23.9991 22.5587 23.683 23.1213 23.1204C23.6839 22.5578 24 21.7947 24 20.9991V15.9991H21Z" fill="white"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 L12 22 M12 2 C10 2 8 4 8 7 C8 10 10 12 12 12 C14 12 16 10 16 7 C16 4 14 2 12 2 Z"/></svg>',
-  percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7 L17 17 M9 7 L9 9 M15 15 L15 17 M10 5 L14 5 M10 19 L14 19"/></svg>',
+  percent: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><g clip-path="url(#clip0_406_3903)"><path d="M20.1218 13.293L18.7078 14.707L20.9998 17H20.6178C17.2338 17 15.0818 15.468 13.1718 13.4921L12.8718 13.8401C12.5438 14.2201 12.2058 14.6111 11.8538 15.0041C14.0539 17.5515 17.2559 19.0123 20.6218 19.004H20.9998L18.7068 21.297L20.1208 22.711L23.4138 19.418C24.1946 18.637 24.1946 17.371 23.4138 16.59L20.1218 13.293Z" fill="#ffffff"/><path d="M20.619 6.99992H21L18.708 9.29291L20.122 10.7069L23.415 7.41388C24.1958 6.63289 24.1958 5.36689 23.415 4.58586L20.122 1.29285L18.708 2.70683L21 4.99996H20.618C15.661 4.99996 12.951 7.66996 10.492 10.478C8.06302 7.73493 5.14299 4.99996 -0.039978 4.99996V6.99997C4.42402 6.99997 6.83302 9.33599 9.16904 12C6.83302 14.6639 4.42402 17 -0.039978 17V19C5.76802 19 8.73601 15.564 11.36 12.534C13.814 9.68793 16.137 6.99992 20.619 6.99992Z" fill="#ffffff"/></g><defs><clipPath id="clip0_406_3903"><rect width="24" height="24" fill="white"/></clipPath></defs></svg>',
   windows: '<svg width="448" height="512" viewBox="0 0 448 512"><defs><linearGradient id="globalLight" gradientUnits="userSpaceOnUse" x1="44" y1="456" x2="404" y2="56"><stop offset="0%" stop-color="#000000" stop-opacity="0.18"/><stop offset="45%" stop-color="#000000" stop-opacity="0"/><stop offset="55%" stop-color="#ffffff" stop-opacity="0"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.45"/></linearGradient></defs><g><rect x="44" y="56" width="172" height="192" fill="#005B96"/><rect x="232" y="56" width="172" height="192" fill="#35A0E2"/><rect x="44" y="264" width="172" height="192" fill="#0280C4"/><rect x="232" y="264" width="172" height="192" fill="#6ABBEF"/></g><g fill="url(#globalLight)"><rect x="44" y="56" width="172" height="192"/><rect x="232" y="56" width="172" height="192"/><rect x="44" y="264" width="172" height="192"/><rect x="232" y="264" width="172" height="192"/></g></svg>',
   linux: '<svg viewBox="60 30 400 430" fill="none"><g transform="matrix(2 0 0 2 256 256)"><path d="M-32-25c-3 7-24 29-22 51 8 92 36 30 78 53 0 0 75-42 15-110-17-24-2-43-13-59s-30-17-44-2 6 37-14 67" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="2"/><path d="M42 21s9-18-8-31c16 17 6 32 6 32h-3C36-13 27 6 14-56 29-73 0-88 0-60h-9c1-24-20-12-8 5-1 37-23 52-23 78-7-18 6-32 6-32s-18 15-7 37 31 17 17 27c22 15 56 5 55-27 1-8 22-5 24-3s-3-4-13-4m-56-78c-7-2-5-11-2-11s8 7 2 11m19 1c-5-7-1-14 4-13s5 13-4 13" fill="#e8e6e3" stroke="#1a1a1a" stroke-width="2"/><g fill="#f59e0b" stroke="#1a1a1a" stroke-width="2"><path d="M-41 31l21 30c11 7 5 35-25 21-17-5-31-4-33-13s4-10 3-14c-4-22 14-11 19-22s5-16 15-2M71 45c-4-6 0-17-14-16-6 12-23 24-24 0-10 0-3 24-7 35-9 27 17 29 28 16l26-18c2-3 5-6-9-17m-92-92c-3-6 11-14 16-14s12 4 19 6 4 9 2 10S3-35-5-35s-10-8-16-12"/><path d="M-21-48c8 6 17 11 35-3"/></g><path d="M-10-54c-2 0 1-2 2-1m7 1c1-1-1-2-3-1" fill="#e8e6e3" stroke="#1a1a1a" stroke-width="2"/></g></svg>',
   scanner_shk: '<svg fill="#ffffff" height="200px" width="200px" version="1.1" id="Layer_1" viewBox="0 0 512 512" xml:space="preserve"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <g> <path d="M240.905,102.63C134.963,77.406,59.887,96.486,24.977,122.743C9.523,134.366,0.657,148.207,0,162.133 c0,19.823,16.521,39.057,40.354,48.154C16.572,283.631,3.934,390.972,0,469.333C0,493.261,26.24,512,59.733,512h85.333 c4.71,0,8.533-3.814,8.533-8.533v-34.133c0-4.719-3.823-8.533-8.533-8.533c-18.586,0-33.758-18.671-34.125-41.788l25.404-118.554 c0.589-2.748-0.213-5.615-2.142-7.654c-0.802-0.845-1.365-1.783-2.065-2.671H153.6c2.799,0,5.419-1.374,7.014-3.678 c1.596-2.304,1.954-5.231,0.981-7.851c-3.661-9.771-0.265-37.905,17.084-60.262l5.239,2.62c1.826,0.896,3.9,1.143,5.888,0.64 l34.133-8.533c3.251-0.811,5.726-3.448,6.323-6.75l17.067-93.867C248.141,107.998,245.325,103.68,240.905,102.63z M35.234,136.388 c21.026-15.812,58.573-28.621,110.549-28.621c10.598,0,21.914,0.657,33.69,1.809c-0.077,0.461-0.273,0.87-0.273,1.357 c0,23.125-31.266,42.667-68.267,42.667H19.695C22.639,147.823,27.947,141.867,35.234,136.388z M94.054,416.341 c-0.128,0.589-0.188,1.195-0.188,1.792c0,29.542,18.483,54.153,42.667,58.897v17.903h-76.8c-23.125,0-42.667-11.725-42.675-25.173 c0.29-5.692,0.631-11.571,1.016-17.544c13.705-0.29,26.863-6.443,37.137-17.476c16.213-17.417,23.876-44.74,21.589-76.663 c-0.555-14.14,4.344-27.332,13.79-37.154c7.561-7.868,17.664-12.902,26.829-13.576L94.054,416.341z M143.369,273.067h-18.645 c-1.647-10.513,0.708-21.47,4.736-30.216c6.912-14.985,18.534-25.284,31.147-28.442 C147.337,234.539,142.327,257.246,143.369,273.067z M171.102,196.275c-23.066-1.289-45.551,14.302-57.131,39.433 c-8.823,19.14-9.037,38.955-1.425,55.014c-12.262,1.843-24.67,8.38-34.261,18.355c-12.689,13.201-19.277,30.831-18.526,49.929 c1.963,27.426-4.087,50.185-17.041,64.094c-6.682,7.177-14.942,11.213-23.441,11.844c5.692-74.931,18.449-165.615,39.979-227.337 c0.785-2.253,0.597-4.727-0.529-6.835c-1.126-2.099-3.081-3.644-5.393-4.233c-16.64-4.301-29.833-14.746-34.415-25.873h92.015 c27.793,0,52.343,11.025,62.848,26.317C172.919,196.642,172.032,196.326,171.102,196.275z M214.451,197.862l-19.627,4.907 c-4.275-17.365-18.765-31.974-39.322-40.636c24.363-10.257,40.363-28.834,40.695-50.526c10.59,1.493,21.453,3.311,32.87,5.82 L214.451,197.862z"></path> </g> </g> <g> <g> <path d="M452.267,0c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c17.818,0,42.667,55.194,42.667,145.067 S470.084,307.2,452.267,307.2c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c38.801,0,59.733-83.533,59.733-162.133 S491.068,0,452.267,0z"></path> </g> </g> <g> <g> <path d="M384,34.133c-4.71,0-8.533,3.814-8.533,8.533S379.29,51.2,384,51.2c20.181,0,42.667,45.559,42.667,110.933 S404.181,273.067,384,273.067c-4.71,0-8.533,3.814-8.533,8.533c0,4.719,3.823,8.533,8.533,8.533 c34.057,0,59.733-55.023,59.733-128S418.057,34.133,384,34.133z"></path> </g> </g> <g> <g> <path d="M315.733,68.267c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533c23.125,0,42.667,35.166,42.667,76.8 c0,41.634-19.541,76.8-42.667,76.8c-4.71,0-8.533,3.814-8.533,8.533s3.823,8.533,8.533,8.533 c33.493,0,59.733-41.233,59.733-93.867S349.227,68.267,315.733,68.267z"></path> </g> </g> </g></svg>',
@@ -3051,7 +3051,7 @@ state.state.selectedIds.forEach(id => {
 
     const shapes = ['circle', 'diamond', 'triangle'];
     const sizes = ['small', 'medium', 'large'];
-    const sizeDims = { small: 6, medium: 10, large: 14 };
+    const sizeDims = { small: 9, medium: 15, large: 21 };
 
     // Генерация SVG-иконки с заливкой и обводкой (размер в пикселях)
     function makeShapeSVG(shape, color, sizePx) {
@@ -3140,8 +3140,8 @@ state.state.selectedIds.forEach(id => {
         const circle = ev.target.closest(".waypoint-circle");
         if (!circle) return;
         const rect = circle.getBoundingClientRect();
-        miniPopup.style.left = (rect.left + rect.width / 2 - 30) + "px";
-        miniPopup.style.top = (rect.top - 30) + "px";
+        miniPopup.style.left = (rect.left + rect.width / 2 - 18) + "px";
+        miniPopup.style.top = (rect.top - 45) + "px";
         miniPopup.style.display = "flex";
     }
 
