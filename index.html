@@ -1255,7 +1255,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     </div>
   </div>
   <div class="form-group">
-    <label class="form-label">Изображение (URL)</label>
+    <label class="form-label">Фото рабочей зоны</label>
     <div class="image-url-row">
         <input type="text" class="input-field" id="blockImageUrl" placeholder="https://...">
         <button class="btn image-preview-btn" id="btnImagePreview" title="Видимая область"><span class="drm-icon-slot" data-icon="camera"></span></button>
@@ -1266,6 +1266,14 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     <div class="color-grid" id="colorGrid"></div>
     <!-- custom color input будет скрыт, его кликнет ячейка палитры -->
     <input type="color" id="customColor" value="#1e1e22" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+  </div>
+    <div class="form-group">
+    <label class="form-label">Фото рабочей зоны — задний фон</label>
+    <div class="image-url-row">
+        <input type="text" class="input-field" id="bgImageUrl" placeholder="https://...">
+        <button class="btn image-preview-btn" id="btnBgImagePreview" title="Видимая область"><span class="drm-icon-slot" data-icon="camera"></span></button>
+        <button class="btn image-clear-btn" id="btnBgImageClear" title="Очистить адрес"><span class="drm-icon-slot" data-icon="xmark" style="color:var(--danger);"></span></button>
+    </div>
   </div>
   <div class="form-group">
     <label class="form-label">Связи блока</label>
@@ -1351,7 +1359,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "1.0alpha5";
+const APP_VERSION = "1.0alpha6";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -1661,7 +1669,7 @@ function showToast(e, t) {
   let n = document.getElementById("toastContainer");
   let o = document.createElement("div");
   o.className = "toast toast-" + t;
-  let i = { success: "circle_check", info: "circle_info", error: "circle_exclamation" };
+  let i = { success: "circle_check", info: "circle_check", error: "circle_exclamation" };
   o.innerHTML = renderIconHTML(i[t] || i.info) + " " + e;
   n.appendChild(o);
   setTimeout(() => o.remove(), 3000);
@@ -2203,7 +2211,15 @@ function cloneBlock(e) {
     bgColor: e.bgColor, isLocked: e.isLocked, title: e.title,
     items: JSON.parse(JSON.stringify(e.items)),
     imageUrl: e.imageUrl || "",
-    cropRect: e.cropRect ? { ...e.cropRect } : null
+    cropRect: e.cropRect ? { ...e.cropRect } : null,
+    _imageNaturalWidth: e._imageNaturalWidth || null,
+    _imageNaturalHeight: e._imageNaturalHeight || null,
+    // Добавляем фоновое:
+    bgImageUrl: e.bgImageUrl || "",
+    bgCropRect: e.bgCropRect ? { ...e.bgCropRect } : null,
+    _bgImageNaturalWidth: e._bgImageNaturalWidth || null,
+    _bgImageNaturalHeight: e._bgImageNaturalHeight || null
+    
   };
 }
 
@@ -2309,84 +2325,127 @@ const renderer = (() => {
 
     return `<div class="block-image-preview" style="${extraStyle} overflow:hidden; position:relative; display:none;">${content}</div>`;
 }
+
+function applyBgImage(layerEl, block) {
+    if (!block.bgImageUrl) {
+        layerEl.style.backgroundImage = '';
+        layerEl.style.backgroundSize = '';
+        layerEl.style.backgroundPosition = '';
+        return;
+    }
+    const nw = block._bgImageNaturalWidth;
+    const nh = block._bgImageNaturalHeight;
+    const crop = block.bgCropRect;
+    // Размеры слоя: ширина как у блока, высота = высота блока - высота заголовка (28px)
+    const layerW = block.width;
+    const layerH = Math.max(1, block.height - 28);
+
+    if (crop && nw && nh && crop.w > 0 && crop.h > 0) {
+        // Фон с обрезкой
+        const scaleX = layerW / crop.w;
+        const scaleY = layerH / crop.h;
+        const offsetX = -crop.x * scaleX;
+        const offsetY = -crop.y * scaleY;
+        layerEl.style.backgroundImage = `url(${block.bgImageUrl})`;
+        layerEl.style.backgroundSize = `${nw * scaleX}px ${nh * scaleY}px`;
+        layerEl.style.backgroundPosition = `${offsetX}px ${offsetY}px`;
+        layerEl.style.backgroundRepeat = 'no-repeat';
+    } else {
+        // Обычное заполнение
+        layerEl.style.backgroundImage = `url(${block.bgImageUrl})`;
+        layerEl.style.backgroundSize = 'cover';
+        layerEl.style.backgroundPosition = 'center';
+        layerEl.style.backgroundRepeat = 'no-repeat';
+    }
+}
+
   function renderBlock(block) {
-    let el = document.getElementById(block.id);
-    if (el) el.remove();
-    el = document.createElement("div");
-    el.className = "block" + (block.isLocked ? "" : " unlocked") + (state.state.selectedIds.has(block.id) ? " selected" : "");
-    el.id = block.id;
-    el.dataset.blockId = block.id;
-    el.style.cssText = `left:${block.x}px;top:${block.y}px;width:${block.width}px;height:${block.height}px;background-color:${block.bgColor === "transparent" ? "transparent" : block.bgColor}`;
+  let el = document.getElementById(block.id);
+  if (el) el.remove();
+  el = document.createElement("div");
+  el.className = "block" + (block.isLocked ? "" : " unlocked") + (state.state.selectedIds.has(block.id) ? " selected" : "");
+  el.id = block.id;
+  el.dataset.blockId = block.id;
+  el.style.cssText = `left:${block.x}px;top:${block.y}px;width:${block.width}px;height:${block.height}px;background-color:${block.bgColor === "transparent" ? "transparent" : block.bgColor}`;
 
-    const titleDiv = document.createElement("div");
-    titleDiv.className = "block-title";
-    const titleSpan = document.createElement("span");
-    titleSpan.className = "title-text";
-    titleSpan.textContent = block.title || "";
-    titleDiv.appendChild(titleSpan);
-    el.appendChild(titleDiv);
+    // Слой для фонового изображения (под заголовком)
+  const bgLayer = document.createElement('div');
+  bgLayer.className = 'block-bg-layer';
+  bgLayer.style.position = 'absolute';
+  bgLayer.style.top = '28px';
+  bgLayer.style.left = '0';
+  bgLayer.style.right = '0';
+  bgLayer.style.bottom = '0';
+  bgLayer.style.borderRadius = '0 0 10px 10px'; // чтобы не вылезало за скругление блока
+  bgLayer.style.pointerEvents = 'none';          // не мешает кликам по элементам
+  if (block.bgImageUrl) {
+    applyBgImage(bgLayer, block);
+  } else {
+    bgLayer.style.backgroundImage = '';
+    bgLayer.style.backgroundSize = '';
+    bgLayer.style.backgroundPosition = '';
+  }
+  el.appendChild(bgLayer);
 
-    const itemsContainer = document.createElement("div");
-    itemsContainer.className = "block-items-container";
-    el.appendChild(itemsContainer);
+  const titleDiv = document.createElement("div");
+  titleDiv.className = "block-title";
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "title-text";
+  titleSpan.textContent = block.title || "";
+  titleDiv.appendChild(titleSpan);
+  el.appendChild(titleDiv);
 
-    const resizeHandle = document.createElement("div");
-    resizeHandle.className = "resize-handle";
-    resizeHandle.dataset.action = "resize";
-    el.appendChild(resizeHandle);
+  const itemsContainer = document.createElement("div");
+  itemsContainer.className = "block-items-container";
+  el.appendChild(itemsContainer);
 
-    // Кнопка с иконкой камеры
-const imgBtn = document.createElement("div");
-imgBtn.className = "block-image-btn";
-imgBtn.dataset.action = "preview-toggle";
-if (!block.imageUrl) imgBtn.style.display = "none";
-imgBtn.innerHTML = renderIconHTML("camera");
-el.appendChild(imgBtn);
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "resize-handle";
+  resizeHandle.dataset.action = "resize";
+  el.appendChild(resizeHandle);
 
-// Превью (отдельный элемент)
-const previewHtml = buildImagePreviewContent(block);
-if (previewHtml) {
+  // Кнопка с иконкой камеры
+  const imgBtn = document.createElement("div");
+  imgBtn.className = "block-image-btn";
+  imgBtn.dataset.action = "preview-toggle";
+  if (!block.imageUrl) imgBtn.style.display = "none";
+  imgBtn.innerHTML = renderIconHTML("camera");
+  el.appendChild(imgBtn);
+
+  // Превью (отдельный элемент)
+  const previewHtml = buildImagePreviewContent(block);
+  if (previewHtml) {
     const temp = document.createElement('div');
     temp.innerHTML = previewHtml;
     const previewEl = temp.firstElementChild;
+    // Насильно скрываем, даже если в разметке мог остаться display:block
+    previewEl.style.display = 'none';
     el.appendChild(previewEl);
-} else {
+  } else {
     const previewDiv = document.createElement('div');
     previewDiv.className = 'block-image-preview';
     previewDiv.style.display = 'none';
     el.appendChild(previewDiv);
-}
-
-  // Превью (отдельный элемент, позиционируется абсолютно внутри блока)
-  const previewDiv = document.createElement("div");
-  previewDiv.className = "block-image-preview";
-  previewDiv.style.maxWidth = "500px";
-  previewDiv.style.maxHeight = "400px";
-  previewDiv.style.display = "none";
-  previewDiv.style.overflow = "hidden";
-  previewDiv.innerHTML = block.imageUrl ?
-      `<img src="${block.imageUrl}" style="width:100%; height:auto; display:block; border-radius:8px;"
-          onerror="this.parentElement.style.display='none'">` : '';
-  el.appendChild(previewDiv);
-
-    const penHandle = document.createElement("div");
-    penHandle.className = "pen-handle";
-    penHandle.dataset.action = "edit";
-    penHandle.innerHTML = renderIconHTML("pen");
-    titleDiv.appendChild(penHandle);
-
-    const lockHandle = document.createElement("div");
-    lockHandle.className = "lock-handle";
-    lockHandle.dataset.action = "lock";
-    lockHandle.innerHTML = renderIconHTML(block.isLocked ? "lock" : "lock_open");
-    titleDiv.appendChild(lockHandle);
-
-    renderBlockItems(el, block.items, block.bgColor);
-    el.classList.add("block-entering");
-    canvasWrapper.appendChild(el);
-    el.addEventListener("animationend", () => el.classList.remove("block-entering"), { once: true });
-    updateZIndices();
   }
+
+  const penHandle = document.createElement("div");
+  penHandle.className = "pen-handle";
+  penHandle.dataset.action = "edit";
+  penHandle.innerHTML = renderIconHTML("pen");
+  titleDiv.appendChild(penHandle);
+
+  const lockHandle = document.createElement("div");
+  lockHandle.className = "lock-handle";
+  lockHandle.dataset.action = "lock";
+  lockHandle.innerHTML = renderIconHTML(block.isLocked ? "lock" : "lock_open");
+  titleDiv.appendChild(lockHandle);
+
+  renderBlockItems(el, block.items, block.bgColor);
+  el.classList.add("block-entering");
+  canvasWrapper.appendChild(el);
+  el.addEventListener("animationend", () => el.classList.remove("block-entering"), { once: true });
+  updateZIndices();
+}
 
   function renderBlockItems(blockEl, items, bgColor) {
     const container = blockEl.querySelector(".block-items-container");
@@ -2446,6 +2505,27 @@ if (previewHtml) {
     el.style.width = block.width + "px";
     el.style.height = block.height + "px";
     el.style.backgroundColor = block.bgColor === "transparent" ? "transparent" : block.bgColor;
+        // Обновляем фоновый слой
+    let bgLayer = el.querySelector('.block-bg-layer');
+    if (!bgLayer) {
+        bgLayer = document.createElement('div');
+        bgLayer.className = 'block-bg-layer';
+        bgLayer.style.position = 'absolute';
+        bgLayer.style.top = '28px';
+        bgLayer.style.left = '0';
+        bgLayer.style.right = '0';
+        bgLayer.style.bottom = '0';
+        bgLayer.style.borderRadius = '0 0 10px 10px';
+        bgLayer.style.pointerEvents = 'none';
+        el.appendChild(bgLayer);
+    }
+    if (block.bgImageUrl) {
+        applyBgImage(bgLayer, block);
+    } else {
+        bgLayer.style.backgroundImage = '';
+        bgLayer.style.backgroundSize = '';
+        bgLayer.style.backgroundPosition = '';
+    }
     const titleSpan = el.querySelector(".title-text");
     if (titleSpan) titleSpan.textContent = block.title || "";
     const lockHandle = el.querySelector(".lock-handle");
@@ -3979,7 +4059,11 @@ function closeEditModal() {
         if (newUrl !== (block.imageUrl || '')) {
             state.updateBlock(state.state.editingBlockId, { imageUrl: newUrl });
         }
-        // cropRect и _imageNatural* не трогаем – они управляются только через модалку предпросмотра
+
+        const bgUrlInput = document.getElementById("bgImageUrl");
+const newBgUrl = bgUrlInput.value.trim();
+if (newBgUrl !== (block.bgImageUrl || '')) {
+    state.updateBlock(state.state.editingBlockId, { bgImageUrl: newBgUrl });
     }
     if (state.state.editingBlockId && state.state.editingSnapshot) {
         let e = state.getBlock(state.state.editingBlockId);
@@ -3996,7 +4080,7 @@ function closeEditModal() {
     editModal.classList.remove("open");
     state.state.editingBlockId = null;
     state.state.editSnapshot = null;
-}
+}}
 
 function openEditModal(e) {
     let t = state.getBlock(e);
@@ -4015,6 +4099,7 @@ function openEditModal(e) {
     blockTitleInput.value = t.title || "";
     customColor.value = "transparent" === t.bgColor ? "#000000" : t.bgColor;
     document.getElementById("blockImageUrl").value = t.imageUrl || "";
+    document.getElementById("bgImageUrl").value = t.bgImageUrl || "";
     invNumInput.value = "";
     labelInput.value = "";
     btnAddItem.innerHTML = renderIconHTML("plus") + " Добавить элемент";
@@ -4388,104 +4473,109 @@ function addTemplate(e) {
 }
 
 function loadFromJSON(e, t) {
-    try {
-        if (!e.blocks || !Array.isArray(e.blocks)) throw new Error("Неверный формат файла");
-        canvasWrapper.querySelectorAll(".block").forEach(e => e.remove());
-        state.state.blocks = [];
-        state.state.connections = [];
-        state.clearSelection();
-        state.state.blockIdCounter = e.blockIdCounter || 0;
-        state.state.connectionIdCounter = e.connectionIdCounter || 0;
-        state.state.editingBlockId = null;
-        state.state.selectedConnectionId = null;
-        state.state.selectedWaypoint = null;
-        editModal.classList.remove("open");
-        errorOverlay.classList.remove("open");
-        e.blocks.forEach(e => {
-            let t = {
-                cropRect: e.cropRect ? { ...e.cropRect } : null,
-_imageNaturalWidth: e._imageNaturalWidth || null,
-_imageNaturalHeight: e._imageNaturalHeight || null,
-id: e.id || "block_" + (++state.state.blockIdCounter),
-                x: e.x || 0,
-                y: e.y || 0,
-                width: e.width || 180,
-                height: e.height || 140,
-                bgColor: e.bgColor || "#1e1e22",
-                isLocked: e.isLocked !== undefined ? e.isLocked : false,
-                title: e.title || "",
-                items: (e.items || []).map(item => ({
-                    icon: normalizeIconKey(item.icon || "windows"),
-                    label: item.label || "",
-                    x: item.x || 0,
-                    y: item.y || 0,
-                    invNum: item.invNum || ""
-                })),
-                imageUrl: e.imageUrl || ""
-            };
-            state.state.blocks.push(t);
-            renderer.renderBlock(t);
-        });
-        if (e.connections && Array.isArray(e.connections)) {
-            e.connections.forEach(e => {
-                if (!e.from || !e.to) return;
-                if (!state.getBlock(e.from.blockId) || !state.getBlock(e.to.blockId)) return;
-                let t = {
-                    id: e.id || "conn_" + (++state.state.connectionIdCounter),
-                    from: {
-                        blockId: e.from.blockId,
-                        itemIndex: e.from.itemIndex != null ? e.from.itemIndex : null,
-                        side: e.from.side || "right",
-                        t: e.from.t != null ? e.from.t : .5
-                    },
-                    to: {
-                        blockId: e.to.blockId,
-                        itemIndex: e.to.itemIndex != null ? e.to.itemIndex : null,
-                        side: e.to.side || "left",
-                        t: e.to.t != null ? e.to.t : .5
-                    },
-                    waypoints: (e.waypoints || []).map(wp => {
-                        let w = { style: wp.style || {} };
-                        if (wp.t !== undefined) { w.t = wp.t; w.offsetX = 0; w.offsetY = 0; }
-                        else { w.blockId = wp.blockId; w.offsetX = wp.offsetX || 0; w.offsetY = wp.offsetY || 0; }
-                        if (wp.snapToLine !== undefined) w.snapToLine = wp.snapToLine;
-                        return w;
-                    }),
-                    stroke: e.stroke || "#e8a030",
-                    strokeWidth: e.strokeWidth || 2,
-                    dashArray: e.dashArray || "none",
-                    startMarker: e.startMarker || "none",
-                    endMarker: e.endMarker || "triangle",
-                    label: e.label || "",
-                    labelAngle: e.labelAngle || 0,
-                    labelOffsetX: e.labelOffsetX || 0,
-                    labelOffsetY: e.labelOffsetY || 0
-                };
-                state.state.connections.push(t);
-            });
-        }
-        state.state.blocks.forEach(e => {
-            let t = parseInt(e.id.replace("block_", ""));
-            if (!isNaN(t) && t > state.state.blockIdCounter) state.state.blockIdCounter = t;
-        });
-        state.state.connections.forEach(e => {
-            let t = parseInt((e.id || "").replace("conn_", ""));
-            if (!isNaN(t) && t > state.state.connectionIdCounter) state.state.connectionIdCounter = t;
-        });
-        history.clear();
-        events.emit("state:changed");
-        showToast("Загружено " + state.state.blocks.length + " блоков" + (t ? " (" + t + ")" : ""), "success");
-        if (state.state.blocks.length) {
-            setTimeout(() => {
-                let e = state.state.blocks[0];
-                workspace.scrollLeft = Math.max(0, e.x * state.state.zoom - 50);
-                workspace.scrollTop = Math.max(0, e.y * state.state.zoom - 50);
-            }, 50);
-        }
-    } catch (e) {
-        errorMessage.textContent = e.message;
-        errorOverlay.classList.add("open");
+  try {
+    if (!e.blocks || !Array.isArray(e.blocks)) throw new Error("Неверный формат файла");
+    canvasWrapper.querySelectorAll(".block").forEach(e => e.remove());
+    state.state.blocks = [];
+    state.state.connections = [];
+    state.clearSelection();
+    state.state.blockIdCounter = e.blockIdCounter || 0;
+    state.state.connectionIdCounter = e.connectionIdCounter || 0;
+    state.state.editingBlockId = null;
+    state.state.selectedConnectionId = null;
+    state.state.selectedWaypoint = null;
+    editModal.classList.remove("open");
+    errorOverlay.classList.remove("open");
+    e.blocks.forEach(e => {
+      let t = {
+        cropRect: e.cropRect ? { ...e.cropRect } : null,
+        _imageNaturalWidth: e._imageNaturalWidth || null,
+        _imageNaturalHeight: e._imageNaturalHeight || null,
+        id: e.id || "block_" + (++state.state.blockIdCounter),
+        x: e.x || 0,
+        y: e.y || 0,
+        width: e.width || 180,
+        height: e.height || 140,
+        bgColor: e.bgColor || "#1e1e22",
+        isLocked: e.isLocked !== undefined ? e.isLocked : false,
+        title: e.title || "",
+        items: (e.items || []).map(item => ({
+          icon: normalizeIconKey(item.icon || "windows"),
+          label: item.label || "",
+          x: item.x || 0,
+          y: item.y || 0,
+          invNum: item.invNum || ""
+        })),
+        imageUrl: e.imageUrl || "",
+        // Фоновое изображение
+        bgImageUrl: e.bgImageUrl || "",
+        bgCropRect: e.bgCropRect ? { ...e.bgCropRect } : null,
+        _bgImageNaturalWidth: e._bgImageNaturalWidth || null,
+        _bgImageNaturalHeight: e._bgImageNaturalHeight || null
+      };
+      state.state.blocks.push(t);
+      renderer.renderBlock(t);
+    });
+    if (e.connections && Array.isArray(e.connections)) {
+      e.connections.forEach(e => {
+        if (!e.from || !e.to) return;
+        if (!state.getBlock(e.from.blockId) || !state.getBlock(e.to.blockId)) return;
+        let t = {
+          id: e.id || "conn_" + (++state.state.connectionIdCounter),
+          from: {
+            blockId: e.from.blockId,
+            itemIndex: e.from.itemIndex != null ? e.from.itemIndex : null,
+            side: e.from.side || "right",
+            t: e.from.t != null ? e.from.t : .5
+          },
+          to: {
+            blockId: e.to.blockId,
+            itemIndex: e.to.itemIndex != null ? e.to.itemIndex : null,
+            side: e.to.side || "left",
+            t: e.to.t != null ? e.to.t : .5
+          },
+          waypoints: (e.waypoints || []).map(wp => {
+            let w = { style: wp.style || {} };
+            if (wp.t !== undefined) { w.t = wp.t; w.offsetX = 0; w.offsetY = 0; }
+            else { w.blockId = wp.blockId; w.offsetX = wp.offsetX || 0; w.offsetY = wp.offsetY || 0; }
+            if (wp.snapToLine !== undefined) w.snapToLine = wp.snapToLine;
+            return w;
+          }),
+          stroke: e.stroke || "#e8a030",
+          strokeWidth: e.strokeWidth || 2,
+          dashArray: e.dashArray || "none",
+          startMarker: e.startMarker || "none",
+          endMarker: e.endMarker || "triangle",
+          label: e.label || "",
+          labelAngle: e.labelAngle || 0,
+          labelOffsetX: e.labelOffsetX || 0,
+          labelOffsetY: e.labelOffsetY || 0
+        };
+        state.state.connections.push(t);
+      });
     }
+    state.state.blocks.forEach(e => {
+      let t = parseInt(e.id.replace("block_", ""));
+      if (!isNaN(t) && t > state.state.blockIdCounter) state.state.blockIdCounter = t;
+    });
+    state.state.connections.forEach(e => {
+      let t = parseInt((e.id || "").replace("conn_", ""));
+      if (!isNaN(t) && t > state.state.connectionIdCounter) state.state.connectionIdCounter = t;
+    });
+    history.clear();
+    events.emit("state:changed");
+    showToast("Загружено " + state.state.blocks.length + " блоков" + (t ? " (" + t + ")" : ""), "success");
+    if (state.state.blocks.length) {
+      setTimeout(() => {
+        let e = state.state.blocks[0];
+        workspace.scrollLeft = Math.max(0, e.x * state.state.zoom - 50);
+        workspace.scrollTop = Math.max(0, e.y * state.state.zoom - 50);
+      }, 50);
+    }
+  } catch (e) {
+    errorMessage.textContent = e.message;
+    errorOverlay.classList.add("open");
+  }
 }
 
 function autoSave() {
@@ -5325,6 +5415,7 @@ let cropDragging = false, cropResizing = false;
 let cropStart = {};
 let cropRaf = null;           // для плавного перемещения
 let currentPreviewBlockId = null; // из какой модалки редактирования открыт предпросмотр
+let currentPreviewMode = 'main'; // 'main' или 'bg'
 
 const previewModal = document.getElementById('imagePreviewModal');
 const previewImg = document.getElementById('imagePreviewImg');
@@ -5359,87 +5450,98 @@ function scheduleCropUpdate() {
     });
 }
 
-function openImagePreview(url) {
-    // Запоминаем, какой блок редактируется (если открыт из модалки редактирования)
-	currentPreviewBlockId = state.state.editingBlockId || null;
-	if (!url) { showToast('Введите адрес изображения', 'info'); return; }
-    previewImg.src = url;
-    previewModal.classList.add('open');
-    previewImg.onload = () => {
-    const nw = previewImg.naturalWidth, nh = previewImg.naturalHeight;
-    imgSizeInfo.textContent = `Исходный: ${nw}×${nh}`;
-
-    // Сохраняем натуральные размеры в редактируемом блоке
-    if (currentPreviewBlockId) {
-        const block = state.getBlock(currentPreviewBlockId);
-        if (block) {
-            block._imageNaturalWidth = nw;
-            block._imageNaturalHeight = nh;
-        }
-    }
-
-    // Восстанавливаем сохранённую рамку, если она есть
+function openImagePreview(url, mode = 'main') {
+  currentPreviewMode = mode;
+  currentPreviewBlockId = state.state.editingBlockId;
+  if (!url) { showToast('Введите адрес изображения', 'info'); return; }
+  previewImg.src = url;
+  previewModal.classList.add('open');
+  previewImg.onload = () => {
+    const nw = previewImg.naturalWidth;
+    const nh = previewImg.naturalHeight;
+    imgSizeInfo.textContent = `Видимая область: ${nw}×${nh}`;
     const block = state.getBlock(currentPreviewBlockId);
-    if (block && block.cropRect) {
-        imageCropRect = {
-            x: block.cropRect.x,
-            y: block.cropRect.y,
-            w: block.cropRect.w,
-            h: block.cropRect.h
-        };
-    } else {
-        // Иначе – центр 80%
-        const cw = nw * 0.8, ch = nh * 0.8;
-        imageCropRect = {
-            x: (nw - cw) / 2,
-            y: (nh - ch) / 2,
-            w: cw,
-            h: ch
-        };
+    if (!block) return;
+    let crop = null;
+    if (mode === 'main') {
+      block._imageNaturalWidth = nw;
+      block._imageNaturalHeight = nh;
+      crop = block.cropRect;
+    } else if (mode === 'bg') {
+      block._bgImageNaturalWidth = nw;
+      block._bgImageNaturalHeight = nh;
+      crop = block.bgCropRect;
     }
-
-    // Автомасштабирование
+    if (crop && crop.w > 0 && crop.h > 0) {
+      imageCropRect = { ...crop };
+    } else {
+      const cw = nw * 0.8;
+      const ch = nh * 0.8;
+      imageCropRect = {
+        x: (nw - cw) / 2,
+        y: (nh - ch) / 2,
+        w: cw,
+        h: ch
+      };
+    }
     const MAX_HEIGHT = 700;
-const containerRect = imagePreviewContainer.getBoundingClientRect();
-const availW = containerRect.width;
-const availH = containerRect.height;
-const scaleByHeight = nh > MAX_HEIGHT ? MAX_HEIGHT / nh : 1;
-imageZoom = Math.min(availW / nw, availH / nh, 1, scaleByHeight);
-if (imageZoom < 0.1) imageZoom = 0.1;
-
+    const containerRect = imagePreviewContainer.getBoundingClientRect();
+    const availW = containerRect.width;
+    const availH = containerRect.height;
+    const scaleByHeight = nh > MAX_HEIGHT ? MAX_HEIGHT / nh : 1;
+    imageZoom = Math.min(availW / nw, availH / nh, 1, scaleByHeight);
+    if (imageZoom < 0.1) imageZoom = 0.1;
     applyZoom();
-};
-    previewImg.onerror = () => {
-        imgSizeInfo.textContent = 'Ошибка загрузки';
-    };
+  };
+  previewImg.onerror = () => {
+    imgSizeInfo.textContent = 'Ошибка загрузки';
+  };
 }
 
 // Закрытие
 closePreviewBtn.addEventListener('click', () => {
     if (currentPreviewBlockId && previewImg.naturalWidth) {
-        state.updateBlock(currentPreviewBlockId, {
-            _imageNaturalWidth: previewImg.naturalWidth,
-            _imageNaturalHeight: previewImg.naturalHeight,
-            cropRect: { ...imageCropRect }
-        });
-        const blockEl = document.getElementById(currentPreviewBlockId);
-        if (blockEl) {
-            renderer.patchBlockDOM(state.getBlock(currentPreviewBlockId));
-        }
-    }
-    previewModal.classList.remove('open');
-});
-previewModal.addEventListener('click', e => {
-    if (e.target === previewModal) {
-        if (currentPreviewBlockId && previewImg.naturalWidth) {
+    const block = state.getBlock(currentPreviewBlockId);
+    if (block) {
+        if (currentPreviewMode === 'main') {
             state.updateBlock(currentPreviewBlockId, {
                 _imageNaturalWidth: previewImg.naturalWidth,
                 _imageNaturalHeight: previewImg.naturalHeight,
                 cropRect: { ...imageCropRect }
             });
-            const blockEl = document.getElementById(currentPreviewBlockId);
-            if (blockEl) {
-                renderer.patchBlockDOM(state.getBlock(currentPreviewBlockId));
+        } else if (currentPreviewMode === 'bg') {
+            state.updateBlock(currentPreviewBlockId, {
+                _bgImageNaturalWidth: previewImg.naturalWidth,
+                _bgImageNaturalHeight: previewImg.naturalHeight,
+                bgCropRect: { ...imageCropRect }
+            });
+        }
+    }
+}
+previewModal.classList.remove('open');
+});
+previewModal.addEventListener('click', e => {
+    if (e.target === previewModal) {
+        if (currentPreviewBlockId && previewImg.naturalWidth) {
+            const block = state.getBlock(currentPreviewBlockId);
+            if (block) {
+                if (currentPreviewMode === 'main') {
+                    state.updateBlock(currentPreviewBlockId, {
+                        _imageNaturalWidth: previewImg.naturalWidth,
+                        _imageNaturalHeight: previewImg.naturalHeight,
+                        cropRect: { ...imageCropRect }
+                    });
+                } else if (currentPreviewMode === 'bg') {
+                    state.updateBlock(currentPreviewBlockId, {
+                        _bgImageNaturalWidth: previewImg.naturalWidth,
+                        _bgImageNaturalHeight: previewImg.naturalHeight,
+                        bgCropRect: { ...imageCropRect }
+                    });
+                }
+                const blockEl = document.getElementById(currentPreviewBlockId);
+                if (blockEl) {
+                    renderer.patchBlockDOM(state.getBlock(currentPreviewBlockId));
+                }
             }
         }
         previewModal.classList.remove('open');
@@ -5450,6 +5552,16 @@ previewModal.addEventListener('click', e => {
 document.getElementById('btnImagePreview').addEventListener('click', () => {
     const url = document.getElementById('blockImageUrl').value.trim();
     openImagePreview(url);
+});
+
+document.getElementById('btnBgImagePreview').addEventListener('click', () => {
+    const url = document.getElementById('bgImageUrl').value.trim();
+    openImagePreview(url, 'bg');
+});
+
+document.getElementById('btnBgImageClear').addEventListener('click', () => {
+    document.getElementById('bgImageUrl').value = '';
+    showToast('Адрес фонового изображения очищен', 'info');
 });
 
 // Зум
