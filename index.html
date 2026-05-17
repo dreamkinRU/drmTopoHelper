@@ -111,32 +111,15 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 
 .block-image-preview {
   position: absolute;
-  /* координаты задаются динамически в JS */
-  left: auto;
-  right: auto;
-  top: auto;
-  bottom: auto;
-  width: 1000px;
-  height: 750px;
+  pointer-events: none;
+  z-index: 300;
+  overflow: hidden;
+  border-radius: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0;
   box-shadow: 0 8px 24px rgba(0,0,0,.5);
   display: none;
-  z-index: 300;
-  pointer-events: none;
-  overflow: hidden;
 }
-.block-image-preview img {
-  display: block;
-  width: 1000px;
-  height: 750px;
-  object-fit: cover;
-  object-position: center;
-  border-radius: 8px;
-}
-.block-image-btn:hover .block-image-preview{display:block}
 
 .resize-handle{position:absolute;bottom:0;right:0;width:20px;height:20px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(232,160,48,.6) 50%);border-radius:0 0 10px 0;opacity:0;transition:opacity .2s var(--easing);z-index:5}
 .block.unlocked:hover .resize-handle,.block.unlocked.selected .resize-handle{opacity:1}
@@ -809,7 +792,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   margin: 2px 0;
 }
 
-/.wp-advanced-dropdown .range-pill {
+.wp-advanced-dropdown .range-pill {
   position: relative;
   height: 30px;
   background: var(--bg);
@@ -883,6 +866,197 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .wp-advanced-dropdown > label {
   display: none !important;
 }
+
+/* Строка с полем URL и кнопками */
+.image-url-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.image-url-row .input-field {
+    flex: 1;
+}
+.image-preview-btn,
+.image-clear-btn {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+.image-preview-btn:hover {
+    background: rgba(255,255,255,0.08);
+}
+.image-clear-btn:hover {
+    background: rgba(224,64,64,0.15);
+}
+
+/* Модалка просмотра изображения */
+.image-preview-modal-content {
+    padding: 8px;
+    max-width: 95vw;
+    max-height: 95vh;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+/* Модалка просмотра изображения */
+#imagePreviewModal .modal {
+    width: 75vw !important;
+    height: 75vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding: 8px !important;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.image-preview-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+.image-zoom-controls {
+    display: flex;
+    flex-direction: row;          /* горизонтально */
+    align-items: center;
+    gap: 6px;
+}
+.image-zoom-controls .zoom-btn,
+.image-zoom-controls .btn {
+    width: auto;
+    padding: 4px 10px;
+    font-size: 13px;
+    height: auto;
+    line-height: normal;
+    border-radius: 4px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    cursor: pointer;
+}
+.image-zoom-controls .zoom-btn:hover,
+.image-zoom-controls .btn:hover {
+    background: var(--accent);
+    color: #0c0c0c;
+}
+.image-zoom-controls .zoom-label {
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 40px;
+    text-align: center;
+}
+.image-preview-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+    border-radius: 4px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+.image-preview-container img {
+    display: block;
+    transform-origin: top left;
+    user-select: none;
+    pointer-events: none;        /* не мешает перетаскиванию оверлея */
+}
+.image-crop-overlay {
+    position: absolute;
+    border: 2px dashed var(--accent);
+    background: rgba(232, 160, 48, 0.15);
+    pointer-events: auto;
+    cursor: move;
+    min-width: 20px;
+    min-height: 20px;
+    box-sizing: border-box;
+    will-change: left, top, width, height;  /* GPU ускорение */
+    contain: strict;                       /* изолируем пересчёт */
+    transform: translateZ(0);              /* свой слой */
+}
+.image-crop-overlay::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 2px;
+    cursor: nwse-resize;
+    /* ручка не должна мешать contain */
+    pointer-events: auto;
+}
+.image-crop-overlay::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 2px;
+    cursor: nwse-resize;
+}
+/* Кнопки внутри тулбара не должны быть гигантскими */
+.image-preview-toolbar .btn,
+.image-preview-toolbar .zoom-btn {
+    padding: 2px 8px;
+    font-size: 12px;
+    height: auto;
+    line-height: normal;
+}
+.image-preview-toolbar .zoom-btn {
+    width: auto;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--fg);
+}
+.image-preview-toolbar .zoom-btn:hover {
+    background: var(--accent);
+    color: #0c0c0c;
+}
+.image-preview-container img {
+    display: block;
+    transform-origin: top left;
+    user-select: none;
+    pointer-events: none; /* чтобы не мешал перетаскиванию оверлея */
+}
+.image-crop-overlay {
+    position: absolute;
+    border: 2px dashed var(--accent);
+    background: rgba(232, 160, 48, 0.15);
+    pointer-events: auto;
+    cursor: move;
+    min-width: 20px;
+    min-height: 20px;
+    box-sizing: border-box;
+    will-change: left, top, width, height;
+    contain: strict;
+    transform: translateZ(0);
+}
+.image-crop-overlay::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 2px;
+    cursor: nwse-resize;
+    pointer-events: auto;
+}
+
 </style>
 </head>
 <body>
@@ -1082,8 +1256,12 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
   </div>
   <div class="form-group">
     <label class="form-label">Изображение (URL)</label>
-    <input type="text" class="input-field" id="blockImageUrl" placeholder="https://...">
-  </div>
+    <div class="image-url-row">
+        <input type="text" class="input-field" id="blockImageUrl" placeholder="https://...">
+        <button class="btn image-preview-btn" id="btnImagePreview" title="Видимая область"><span class="drm-icon-slot" data-icon="camera"></span></button>
+        <button class="btn image-clear-btn" id="btnImageClear" title="Очистить адрес"><span class="drm-icon-slot" data-icon="xmark" style="color:var(--danger);"></span></button>
+    </div>
+</div>
   <div class="form-group">
     <div class="color-grid" id="colorGrid"></div>
     <!-- custom color input будет скрыт, его кликнет ячейка палитры -->
@@ -1095,6 +1273,25 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
     <div id="noConns" style="font-size:12px;color:var(--muted);padding:4px 0">Нет связей. Тяните от порта при наведении.</div>
   </div>
 </div>
+</div>
+
+<div class="modal-overlay" id="imagePreviewModal">
+    <div class="modal image-preview-modal-content">
+        <div class="image-preview-toolbar">
+            <span id="imageSizeInfo">Загрузка...</span>
+            <div class="image-zoom-controls">
+                <button class="zoom-btn" id="imgZoomOut">−</button>
+                <span class="zoom-label" id="imgZoomLabel">100%</span>
+                <button class="zoom-btn" id="imgZoomIn">+</button>
+                <button class="btn" id="imgZoomReset">Сброс</button>
+            </div>
+            <button class="btn" id="closeImagePreview">✕</button>
+        </div>
+        <div class="image-preview-container" id="imagePreviewContainer">
+            <img id="imagePreviewImg" src="" />
+            <div id="imageCropOverlay" class="image-crop-overlay"></div>
+        </div>
+    </div>
 </div>
 
 <div id="connectionPanel">
@@ -1154,7 +1351,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "1.0alpha4";
+const APP_VERSION = "1.0alpha5";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -2005,7 +2202,8 @@ function cloneBlock(e) {
     id: e.id, x: e.x, y: e.y, width: e.width, height: e.height,
     bgColor: e.bgColor, isLocked: e.isLocked, title: e.title,
     items: JSON.parse(JSON.stringify(e.items)),
-    imageUrl: e.imageUrl || ""
+    imageUrl: e.imageUrl || "",
+    cropRect: e.cropRect ? { ...e.cropRect } : null
   };
 }
 
@@ -2078,6 +2276,39 @@ const renderer = (() => {
   const guidesSvg = document.getElementById("guidesSvg");
 
   // ---------- блоки ----------
+  function buildImagePreviewContent(block) {
+    if (!block.imageUrl) return '';
+    const maxPreviewW = 500, maxPreviewH = 400;
+    const crop = block.cropRect;
+    const nw = block._imageNaturalWidth;
+    const nh = block._imageNaturalHeight;
+
+    let content = '';
+    let extraStyle = `max-width:${maxPreviewW}px; max-height:${maxPreviewH}px;`;
+
+    // Если есть корректный crop – показываем обрезанную область
+    if (crop && crop.w > 0 && crop.h > 0 && nw && nh &&
+        crop.x + crop.w <= nw && crop.y + crop.h <= nh) {
+        const scale = Math.min(1, maxPreviewW / crop.w, maxPreviewH / crop.h);
+        const pw = Math.round(crop.w * scale);
+        const ph = Math.round(crop.h * scale);
+        const left = -Math.round(crop.x * scale);
+        const top = -Math.round(crop.y * scale);
+        const imgW = Math.round(nw * scale);
+        const imgH = Math.round(nh * scale);
+        extraStyle = `width:${pw}px; height:${ph}px;`;
+        content = `<img src="${block.imageUrl}" 
+                    style="position:absolute; left:${left}px; top:${top}px; width:${imgW}px; height:${imgH}px; max-width:none;"
+                    onerror="this.parentElement.style.display='none'">`;
+    } else {
+        // Полное изображение
+        content = `<img src="${block.imageUrl}" 
+                    style="width:100%; height:auto; display:block; border-radius:8px;"
+                    onerror="this.parentElement.style.display='none'">`;
+    }
+
+    return `<div class="block-image-preview" style="${extraStyle} overflow:hidden; position:relative; display:none;">${content}</div>`;
+}
   function renderBlock(block) {
     let el = document.getElementById(block.id);
     if (el) el.remove();
@@ -2104,11 +2335,39 @@ const renderer = (() => {
     resizeHandle.dataset.action = "resize";
     el.appendChild(resizeHandle);
 
-    const imgBtn = document.createElement("div");
-    imgBtn.className = "block-image-btn";
-    if (!block.imageUrl) imgBtn.style.display = "none";
-    imgBtn.innerHTML = renderIconHTML("camera") + `<div class="block-image-preview"><img src="${block.imageUrl || ''}" onerror="this.style.display='none'"></div>`;
-    el.appendChild(imgBtn);
+    // Кнопка с иконкой камеры
+const imgBtn = document.createElement("div");
+imgBtn.className = "block-image-btn";
+imgBtn.dataset.action = "preview-toggle";
+if (!block.imageUrl) imgBtn.style.display = "none";
+imgBtn.innerHTML = renderIconHTML("camera");
+el.appendChild(imgBtn);
+
+// Превью (отдельный элемент)
+const previewHtml = buildImagePreviewContent(block);
+if (previewHtml) {
+    const temp = document.createElement('div');
+    temp.innerHTML = previewHtml;
+    const previewEl = temp.firstElementChild;
+    el.appendChild(previewEl);
+} else {
+    const previewDiv = document.createElement('div');
+    previewDiv.className = 'block-image-preview';
+    previewDiv.style.display = 'none';
+    el.appendChild(previewDiv);
+}
+
+  // Превью (отдельный элемент, позиционируется абсолютно внутри блока)
+  const previewDiv = document.createElement("div");
+  previewDiv.className = "block-image-preview";
+  previewDiv.style.maxWidth = "500px";
+  previewDiv.style.maxHeight = "400px";
+  previewDiv.style.display = "none";
+  previewDiv.style.overflow = "hidden";
+  previewDiv.innerHTML = block.imageUrl ?
+      `<img src="${block.imageUrl}" style="width:100%; height:auto; display:block; border-radius:8px;"
+          onerror="this.parentElement.style.display='none'">` : '';
+  el.appendChild(previewDiv);
 
     const penHandle = document.createElement("div");
     penHandle.className = "pen-handle";
@@ -2192,11 +2451,25 @@ const renderer = (() => {
     const lockHandle = el.querySelector(".lock-handle");
     if (lockHandle) lockHandle.innerHTML = renderIconHTML(block.isLocked ? "lock" : "lock_open");
     const imgBtn = el.querySelector(".block-image-btn");
-    if (imgBtn) {
-      imgBtn.style.display = block.imageUrl ? "" : "none";
-      const img = imgBtn.querySelector("img");
-      if (img) { img.src = block.imageUrl || ""; img.style.display = ""; }
+if (imgBtn) {
+    imgBtn.innerHTML = renderIconHTML("camera"); // только иконка
+    imgBtn.style.display = block.imageUrl ? "" : "none";
+}
+
+// Обновляем отдельный элемент превью
+const oldPreview = el.querySelector(".block-image-preview");
+const newContent = buildImagePreviewContent(block);
+if (oldPreview) {
+    if (newContent) {
+        const temp = document.createElement('div');
+        temp.innerHTML = newContent;
+        const newPreviewEl = temp.firstElementChild;
+        oldPreview.replaceWith(newPreviewEl);
+    } else {
+        oldPreview.style.display = 'none';
+        oldPreview.innerHTML = '';
     }
+}
     renderBlockItems(el, block.items, block.bgColor);
     renderConnections();
   }
@@ -2728,39 +3001,113 @@ const renderer = (() => {
     initDrag(e, blockEl, block);
 }
 
-  function setupCanvasDelegation() {
-    canvasWrapper.addEventListener("mouseleave", () => {
-      canvasWrapper.querySelectorAll(".block.preview-hover").forEach(b => b.classList.remove("preview-hover"));
-    });
-    canvasWrapper.addEventListener("mouseover", e => {
-      canvasWrapper.querySelectorAll(".block.preview-hover").forEach(b => b.classList.remove("preview-hover"));
-      const btn = e.target.closest(".block-image-btn");
-      if (!btn) return;
-      const block = btn.closest(".block");
-      if (block) block.classList.add("preview-hover");
-      const preview = btn.querySelector(".block-image-preview");
-      if (!preview) return;
-      preview.style.left = "30px";
-      preview.style.bottom = "0";
-      preview.style.top = "auto";
-      preview.style.right = "auto";
-      requestAnimationFrame(() => {
-        let rect = preview.getBoundingClientRect();
-        if (rect.top < 10) { preview.style.bottom = "auto"; preview.style.top = "32px"; rect = preview.getBoundingClientRect(); }
+    function setupCanvasDelegation() {
+    
+    // Время перед скрытием (чтобы успеть навести на превью)
+let previewHideTimer = null;
+
+// Показ превью при наведении на иконку камеры
+canvasWrapper.addEventListener("mouseover", e => {
+    const btn = e.target.closest(".block-image-btn");
+    if (!btn) {
+        // Мышь навелась на что-то другое – если есть активное превью, и мышь не над ним, скрываем
+        const activePreview = canvasWrapper.querySelector(".block-image-preview[style*='display: block']");
+        if (activePreview && !activePreview.contains(e.target) && !e.target.closest(".block-image-btn")) {
+            activePreview.style.display = 'none';
+        }
+        return;
+    }
+
+    const block = btn.closest(".block");
+    if (!block) return;
+    const preview = block.querySelector(".block-image-preview");
+    if (!preview) return;
+
+    // Отменяем скрытие, если мышь вернулась на кнопку
+    if (previewHideTimer) clearTimeout(previewHideTimer);
+
+    // Показываем превью
+    preview.style.position = 'absolute';
+    preview.style.bottom = '6px';
+    preview.style.left = '30px';
+    preview.style.top = 'auto';
+    preview.style.right = 'auto';
+    // Показываем превью, только если картинка загружена
+const img = preview.querySelector('img');
+if (img && img.complete && img.naturalWidth > 0) {
+    preview.style.display = 'block';
+} else {
+    preview.style.display = 'none';
+    return; // не показываем, если картинка ещё не загрузилась или битая
+}
+
+    // Проверка выхода за границы окна
+    requestAnimationFrame(() => {
+        const rect = preview.getBoundingClientRect();
+        if (rect.top < 10) {
+            preview.style.bottom = 'auto';
+            preview.style.top = '32px';
+        }
         if (rect.bottom > window.innerHeight - 10) {
-          const overflow = rect.bottom - (window.innerHeight - 10);
-          const currentTop = parseFloat(preview.style.top) || 32;
-          preview.style.top = (currentTop - overflow) + "px";
+            preview.style.bottom = '6px';
+            preview.style.top = 'auto';
         }
-        if (rect.right > window.innerWidth - 10) { preview.style.left = "auto"; preview.style.right = "0"; rect = preview.getBoundingClientRect(); }
+        if (rect.right > window.innerWidth - 10) {
+            preview.style.left = 'auto';
+            preview.style.right = '0';
+        }
         if (rect.left < 10) {
-          const overflow = 10 - rect.left;
-          const currentLeft = parseFloat(preview.style.left) || 0;
-          preview.style.left = (currentLeft + overflow) + "px";
-          preview.style.right = "auto";
+            preview.style.left = '30px';
+            preview.style.right = 'auto';
         }
-      });
     });
+});
+
+// Скрытие превью при уходе мыши с кнопки / превью
+const hidePreview = (preview) => {
+    if (previewHideTimer) clearTimeout(previewHideTimer);
+    previewHideTimer = setTimeout(() => {
+        // Дополнительная проверка: если мышь всё ещё над превью или кнопкой, не скрываем
+        const hovered = document.querySelectorAll(':hover');
+        let stillHovering = false;
+        hovered.forEach(el => {
+            if (el === preview || el.closest('.block-image-btn') === preview.previousElementSibling) {
+                stillHovering = true;
+            }
+        });
+        if (!stillHovering) {
+            preview.style.display = 'none';
+        }
+    }, 50);
+};
+
+canvasWrapper.addEventListener("mouseout", e => {
+    const btn = e.target.closest(".block-image-btn");
+    const preview = e.target.closest(".block-image-preview");
+
+    if (btn) {
+        // Мышь покинула кнопку – возможно, перешла на превью? Проверим relatedTarget
+        const related = e.relatedTarget;
+        const block = btn.closest(".block");
+        if (!block) return;
+        const previewEl = block.querySelector(".block-image-preview");
+        if (!previewEl) return;
+
+        // Если курсор перешёл на само превью или его содержимое – не скрываем
+        if (related && (related === previewEl || previewEl.contains(related))) {
+            return;
+        }
+        hidePreview(previewEl);
+    } else if (preview) {
+        // Мышь покинула превью – проверяем, не перешла ли обратно на кнопку
+        const related = e.relatedTarget;
+        const btnEl = preview.previousElementSibling; // Кнопка перед превью
+        if (related && (related === btnEl || btnEl.contains(related))) {
+            return;
+        }
+        hidePreview(preview);
+    }
+});
     canvasWrapper.addEventListener("pointerdown", _onCanvasPointerDown);
     canvasWrapper.addEventListener("dblclick", e => {
       const block = e.target.closest(".block");
@@ -3624,8 +3971,15 @@ function resetEditing() {
 
 function closeEditModal() {
     if (state.state.editingBlockId) {
-        let newImageUrl = document.getElementById("blockImageUrl").value.trim();
-        state.updateBlock(state.state.editingBlockId, { imageUrl: newImageUrl });
+        const block = state.getBlock(state.state.editingBlockId);
+        const urlInput = document.getElementById("blockImageUrl");
+        const newUrl = urlInput.value.trim();
+
+        // Обновляем imageUrl только если он реально поменялся
+        if (newUrl !== (block.imageUrl || '')) {
+            state.updateBlock(state.state.editingBlockId, { imageUrl: newUrl });
+        }
+        // cropRect и _imageNatural* не трогаем – они управляются только через модалку предпросмотра
     }
     if (state.state.editingBlockId && state.state.editingSnapshot) {
         let e = state.getBlock(state.state.editingBlockId);
@@ -4049,7 +4403,10 @@ function loadFromJSON(e, t) {
         errorOverlay.classList.remove("open");
         e.blocks.forEach(e => {
             let t = {
-                id: e.id || "block_" + (++state.state.blockIdCounter),
+                cropRect: e.cropRect ? { ...e.cropRect } : null,
+_imageNaturalWidth: e._imageNaturalWidth || null,
+_imageNaturalHeight: e._imageNaturalHeight || null,
+id: e.id || "block_" + (++state.state.blockIdCounter),
                 x: e.x || 0,
                 y: e.y || 0,
                 width: e.width || 180,
@@ -4139,10 +4496,13 @@ function autoSave() {
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
             blocks: state.state.blocks.map(e => ({
-                id: e.id, x: e.x, y: e.y, width: e.width, height: e.height,
-                bgColor: e.bgColor, isLocked: e.isLocked, title: e.title || "", imageUrl: e.imageUrl || "",
-                items: e.items.map(e => ({ ...e, icon: normalizeIconKey(e.icon) }))
-            })),
+				id: e.id, x: e.x, y: e.y, width: e.width, height: e.height,
+				bgColor: e.bgColor, isLocked: e.isLocked, title: e.title || "", imageUrl: e.imageUrl || "",
+				items: e.items.map(e => ({ ...e, icon: normalizeIconKey(e.icon) })),
+				cropRect: e.cropRect ? { ...e.cropRect } : null,
+				_imageNaturalWidth: e._imageNaturalWidth || null,
+				_imageNaturalHeight: e._imageNaturalHeight || null
+			})),
             connections: state.state.connections.map(e => ({
                 id: e.id, from: e.from, to: e.to, waypoints: e.waypoints,
                 stroke: e.stroke, strokeWidth: e.strokeWidth, dashArray: e.dashArray,
@@ -4958,6 +5318,247 @@ document.getElementById("btnSave").addEventListener("click", () => {
     showToast("Файл сохранён", "success");
 });
 
+// --- Просмотр изображения с зумом и прямоугольником ---
+let imageCropRect = { x: 10, y: 10, w: 100, h: 100 };
+let imageZoom = 1;
+let cropDragging = false, cropResizing = false;
+let cropStart = {};
+let cropRaf = null;           // для плавного перемещения
+let currentPreviewBlockId = null; // из какой модалки редактирования открыт предпросмотр
+
+const previewModal = document.getElementById('imagePreviewModal');
+const previewImg = document.getElementById('imagePreviewImg');
+const cropOverlay = document.getElementById('imageCropOverlay');
+const imgSizeInfo = document.getElementById('imageSizeInfo');
+const imgZoomLabel = document.getElementById('imgZoomLabel');
+const imgZoomIn = document.getElementById('imgZoomIn');
+const imgZoomOut = document.getElementById('imgZoomOut');
+const imgZoomReset = document.getElementById('imgZoomReset');
+const closePreviewBtn = document.getElementById('closeImagePreview');
+const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+
+function applyZoom() {
+    previewImg.style.transform = `scale(${imageZoom})`;
+    imgZoomLabel.textContent = Math.round(imageZoom * 100) + '%';
+    updateCropOverlay();
+}
+
+function updateCropOverlay() {
+    cropOverlay.style.left = (imageCropRect.x * imageZoom) + 'px';
+    cropOverlay.style.top = (imageCropRect.y * imageZoom) + 'px';
+    cropOverlay.style.width = (imageCropRect.w * imageZoom) + 'px';
+    cropOverlay.style.height = (imageCropRect.h * imageZoom) + 'px';
+}
+
+// Плавное обновление позиции рамки (без тормозов)
+function scheduleCropUpdate() {
+    if (cropRaf) return;
+    cropRaf = requestAnimationFrame(() => {
+        updateCropOverlay();
+        cropRaf = null;
+    });
+}
+
+function openImagePreview(url) {
+    // Запоминаем, какой блок редактируется (если открыт из модалки редактирования)
+	currentPreviewBlockId = state.state.editingBlockId || null;
+	if (!url) { showToast('Введите адрес изображения', 'info'); return; }
+    previewImg.src = url;
+    previewModal.classList.add('open');
+    previewImg.onload = () => {
+    const nw = previewImg.naturalWidth, nh = previewImg.naturalHeight;
+    imgSizeInfo.textContent = `Исходный: ${nw}×${nh}`;
+
+    // Сохраняем натуральные размеры в редактируемом блоке
+    if (currentPreviewBlockId) {
+        const block = state.getBlock(currentPreviewBlockId);
+        if (block) {
+            block._imageNaturalWidth = nw;
+            block._imageNaturalHeight = nh;
+        }
+    }
+
+    // Восстанавливаем сохранённую рамку, если она есть
+    const block = state.getBlock(currentPreviewBlockId);
+    if (block && block.cropRect) {
+        imageCropRect = {
+            x: block.cropRect.x,
+            y: block.cropRect.y,
+            w: block.cropRect.w,
+            h: block.cropRect.h
+        };
+    } else {
+        // Иначе – центр 80%
+        const cw = nw * 0.8, ch = nh * 0.8;
+        imageCropRect = {
+            x: (nw - cw) / 2,
+            y: (nh - ch) / 2,
+            w: cw,
+            h: ch
+        };
+    }
+
+    // Автомасштабирование
+    const MAX_HEIGHT = 700;
+const containerRect = imagePreviewContainer.getBoundingClientRect();
+const availW = containerRect.width;
+const availH = containerRect.height;
+const scaleByHeight = nh > MAX_HEIGHT ? MAX_HEIGHT / nh : 1;
+imageZoom = Math.min(availW / nw, availH / nh, 1, scaleByHeight);
+if (imageZoom < 0.1) imageZoom = 0.1;
+
+    applyZoom();
+};
+    previewImg.onerror = () => {
+        imgSizeInfo.textContent = 'Ошибка загрузки';
+    };
+}
+
+// Закрытие
+closePreviewBtn.addEventListener('click', () => {
+    if (currentPreviewBlockId && previewImg.naturalWidth) {
+        state.updateBlock(currentPreviewBlockId, {
+            _imageNaturalWidth: previewImg.naturalWidth,
+            _imageNaturalHeight: previewImg.naturalHeight,
+            cropRect: { ...imageCropRect }
+        });
+        const blockEl = document.getElementById(currentPreviewBlockId);
+        if (blockEl) {
+            renderer.patchBlockDOM(state.getBlock(currentPreviewBlockId));
+        }
+    }
+    previewModal.classList.remove('open');
+});
+previewModal.addEventListener('click', e => {
+    if (e.target === previewModal) {
+        if (currentPreviewBlockId && previewImg.naturalWidth) {
+            state.updateBlock(currentPreviewBlockId, {
+                _imageNaturalWidth: previewImg.naturalWidth,
+                _imageNaturalHeight: previewImg.naturalHeight,
+                cropRect: { ...imageCropRect }
+            });
+            const blockEl = document.getElementById(currentPreviewBlockId);
+            if (blockEl) {
+                renderer.patchBlockDOM(state.getBlock(currentPreviewBlockId));
+            }
+        }
+        previewModal.classList.remove('open');
+    }
+});	
+
+// Кнопка предпросмотра
+document.getElementById('btnImagePreview').addEventListener('click', () => {
+    const url = document.getElementById('blockImageUrl').value.trim();
+    openImagePreview(url);
+});
+
+// Зум
+imgZoomIn.addEventListener('click', () => {
+    imageZoom = Math.min(imageZoom + 0.2, 3);
+    applyZoom();
+});
+imgZoomOut.addEventListener('click', () => {
+    imageZoom = Math.max(imageZoom - 0.2, 0.1);
+    applyZoom();
+});
+imgZoomReset.addEventListener('click', () => {
+    const nw = previewImg.naturalWidth, nh = previewImg.naturalHeight;
+    const containerRect = imagePreviewContainer.getBoundingClientRect();
+    const MAX_HEIGHT = 700;
+const scaleByHeight = nh > MAX_HEIGHT ? MAX_HEIGHT / nh : 1;
+imageZoom = Math.min(containerRect.width / nw, containerRect.height / nh, 1, scaleByHeight);
+    if (imageZoom < 0.1) imageZoom = 0.1;
+    applyZoom();
+});
+
+// Перетаскивание и ресайз рамки (оптимизированно, с кешем контейнера)
+let cachedContainerRect = null;
+
+cropOverlay.addEventListener('pointerdown', e => {
+    const rect = cropOverlay.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    // Кешируем размеры контейнера один раз в начале взаимодействия
+    cachedContainerRect = imagePreviewContainer.getBoundingClientRect();
+
+    if (clickX > rect.width - 12 && clickY > rect.height - 12) {
+        cropResizing = true;
+        cropStart.x = e.clientX;
+        cropStart.y = e.clientY;
+        cropStart.w = imageCropRect.w;
+        cropStart.h = imageCropRect.h;
+    } else {
+        cropDragging = true;
+        cropStart.offX = (e.clientX - rect.left) / imageZoom;
+        cropStart.offY = (e.clientY - rect.top) / imageZoom;
+    }
+    cropOverlay.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    e.stopPropagation();
+});
+
+document.addEventListener('pointermove', e => {
+    if (!cropDragging && !cropResizing) return;
+    const containerRect = cachedContainerRect; // используем закешированный
+    if (!containerRect) return;
+
+    if (cropDragging) {
+        let newX = (e.clientX - containerRect.left) / imageZoom - cropStart.offX;
+        let newY = (e.clientY - containerRect.top) / imageZoom - cropStart.offY;
+        newX = Math.max(0, Math.min(newX, previewImg.naturalWidth - imageCropRect.w));
+        newY = Math.max(0, Math.min(newY, previewImg.naturalHeight - imageCropRect.h));
+        if (imageCropRect.x !== newX || imageCropRect.y !== newY) {
+            imageCropRect.x = newX;
+            imageCropRect.y = newY;
+            scheduleCropUpdate();
+        }
+    }
+    if (cropResizing) {
+        const dx = (e.clientX - cropStart.x) / imageZoom;
+        const dy = (e.clientY - cropStart.y) / imageZoom;
+        let newW = cropStart.w + dx;
+        let newH = cropStart.h + dy;
+        newW = Math.max(20, Math.min(newW, previewImg.naturalWidth - imageCropRect.x));
+        newH = Math.max(20, Math.min(newH, previewImg.naturalHeight - imageCropRect.y));
+        if (imageCropRect.w !== newW || imageCropRect.h !== newH) {
+            imageCropRect.w = newW;
+            imageCropRect.h = newH;
+            scheduleCropUpdate();
+        }
+    }
+});
+
+document.addEventListener('pointerup', () => {
+    cropDragging = false;
+    cropResizing = false;
+    cachedContainerRect = null;
+    if (cropRaf) {
+        cancelAnimationFrame(cropRaf);
+        cropRaf = null;
+    }
+});
+
+// Очистка адреса
+document.getElementById('btnImageClear').addEventListener('click', () => {
+    document.getElementById('blockImageUrl').value = '';
+    showToast('Адрес изображения очищен', 'info');
+});
+
+// Закрытие модалки предпросмотра по клику на изображение или на оверлей
+document.getElementById('imagePreviewModal').addEventListener('click', function(e) {
+    if (e.target === this || e.target.id === 'imagePreviewImg') {
+        this.classList.remove('open');
+    }
+});
+
+// Очистка адреса изображения
+document.getElementById('btnImageClear').addEventListener('click', () => {
+    document.getElementById('blockImageUrl').value = '';
+    showToast('Адрес изображения очищен', 'info');
+    // Опционально: scheduleUpdate();
+});
+
 // Создание блоков через size‑selector (S / M / L)
 const sizeSelectorEl = document.getElementById('sizeSelector');
 if (sizeSelectorEl) {
@@ -5408,6 +6009,31 @@ function initTooltips() {
     });
 }
 initTooltips();
+
+document.getElementById('blockImageUrl').addEventListener('input', () => {
+    const block = state.getBlock(state.state.editingBlockId);
+    if (!block) return;
+    block.imageUrl = document.getElementById('blockImageUrl').value.trim();
+    const blockEl = document.getElementById(block.id);
+    if (!blockEl) return;
+    // Обновляем превью
+    const oldPreview = blockEl.querySelector(".block-image-preview");
+    const newContent = buildImagePreviewContent(block);
+    if (oldPreview) {
+        if (newContent) {
+            const temp = document.createElement('div');
+            temp.innerHTML = newContent;
+            const newPreviewEl = temp.firstElementChild;
+            oldPreview.replaceWith(newPreviewEl);
+        } else {
+            oldPreview.style.display = 'none';
+            oldPreview.innerHTML = '';
+        }
+    }
+    // Показать/скрыть кнопку
+    const imgBtn = blockEl.querySelector(".block-image-btn");
+    if (imgBtn) imgBtn.style.display = block.imageUrl ? '' : 'none';
+});
 
 // Копирование/вставка блоков
 let clipboard = [];
