@@ -126,7 +126,6 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .block-title .lock-handle,.block-title .pen-handle{position:absolute;top:50%;transform:translateY(-50%);cursor:pointer;color:rgba(255,255,255,.4);z-index:3;pointer-events:auto;transition:color .2s var(--easing);display:none}
 .block-title .lock-handle{left:8px}
 .block-title .pen-handle{right:8px}
-
 .block-title .lock-handle .inline-icon,.block-title .pen-handle .inline-icon{width:1.3em;height:1.3em}
 .block-title .lock-handle:hover,.block-title .pen-handle:hover{color:rgba(255,255,255,.9)}
 .block:not(.unlocked) .block-title .lock-handle{display:flex;color:rgba(255,255,255,.6)}
@@ -1360,7 +1359,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "1.0alpha7";
+const APP_VERSION = "1.0alpha6";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -1918,19 +1917,23 @@ const HistoryActions = {
       }
     };
   },
-  delete(blocks, connections, frontIds) {
+  delete(blocks, connections) {
     const blocksCopy = blocks.map(b => cloneBlock(b));
     const connsCopy = connections.map(c => cloneConnection(c));
-    const frontCopy = new Set(frontIds);
     return {
         type: "delete",
         undo: () => {
+            // Сначала удаляем текущие элементы (если они ещё есть – например, после отмены удаления)
+            blocksCopy.forEach(b => {
+                const existing = document.getElementById(b.id);
+                if (existing) existing.remove();
+            });
+            // Восстанавливаем блоки в state
             blocksCopy.forEach(b => {
                 state.state.blocks = [...state.state.blocks, cloneBlock(b)];
                 renderer.renderBlock(state.getBlock(b.id));
             });
             connsCopy.forEach(c => state.state.connections.push(cloneConnection(c)));
-            frontCopy.forEach(id => state.state.frontBlockIds.add(id));
             events.emit("state:changed");
         },
         redo: () => {
@@ -1941,44 +1944,38 @@ const HistoryActions = {
                 const el = document.getElementById(b.id);
                 if (el) el.remove();
                 state.state.blocks = state.state.blocks.filter(bb => bb.id !== b.id);
-                state.state.frontBlockIds.delete(b.id);
             });
             state.clearSelection();
             events.emit("state:changed");
         }
     };
 },
-  duplicate(newIds, oldBlocks, oldFrontIds) {
+  duplicate(newIds, oldBlocks) {
     const newBlocksData = newIds.map(id => cloneBlock(state.getBlock(id)));
     const oldBlocksData = oldBlocks.map(b => cloneBlock(b));
-    const frontCopy = new Set(oldFrontIds);
     return {
-        type: "duplicate",
-        undo: () => {
-            newIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.remove();
-                state.state.blocks = state.state.blocks.filter(b => b.id !== id);
-                state.state.frontBlockIds.delete(id);
-            });
-            state.selectBlock(null);
-            oldBlocksData.forEach(b => state.selectBlock(b.id, true));
-            frontCopy.forEach(id => state.state.frontBlockIds.add(id));
-            events.emit("state:changed");
-        },
-        redo: () => {
-            newIds.forEach(id => {
-                const block = newBlocksData.find(b => b.id === id);
-                if (block) state.addBlock(block);
-                // Восстанавливаем флаг переднего плана только для дубликатов, если оригинал был передним
-                if (frontCopy.has(id)) state.state.frontBlockIds.add(id);
-            });
-            state.selectBlock(null);
-            newIds.forEach(id => state.selectBlock(id, true));
-            events.emit("state:changed");
-        }
+      type: "duplicate",
+      undo: () => {
+        newIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.remove();
+          state.state.blocks = state.state.blocks.filter(b => b.id !== id);
+        });
+        state.selectBlock(null);
+        oldBlocksData.forEach(b => state.selectBlock(b.id, true));
+        events.emit("state:changed");
+      },
+      redo: () => {
+        newIds.forEach(id => {
+          const block = newBlocksData.find(b => b.id === id);
+          if (block) state.addBlock(block);
+        });
+        state.selectBlock(null);
+        newIds.forEach(id => state.selectBlock(id, true));
+        events.emit("state:changed");
+      }
     };
-},
+  },
   create(blockId, blockData) {
     return {
       type: "create",
@@ -2146,25 +2143,21 @@ const HistoryActions = {
       }
     };
   },
-  order(blockId, oldIndex, newIndex, wasFront, becomesFront) {
+  order(blockId, oldIndex, newIndex) {
     return {
-        type: "order",
-        undo: () => {
-            const b = state.state.blocks.splice(newIndex, 1)[0];
-            state.state.blocks.splice(oldIndex, 0, b);
-            if (wasFront) state.state.frontBlockIds.add(blockId);
-            else state.state.frontBlockIds.delete(blockId);
-            events.emit("state:changed");
-        },
-        redo: () => {
-            const b = state.state.blocks.splice(oldIndex, 1)[0];
-            state.state.blocks.splice(newIndex, 0, b);
-            if (becomesFront) state.state.frontBlockIds.add(blockId);
-            else state.state.frontBlockIds.delete(blockId);
-            events.emit("state:changed");
-        }
+      type: "order",
+      undo: () => {
+        const b = state.state.blocks.splice(newIndex, 1)[0];
+        state.state.blocks.splice(oldIndex, 0, b);
+        events.emit("state:changed");
+      },
+      redo: () => {
+        const b = state.state.blocks.splice(oldIndex, 1)[0];
+        state.state.blocks.splice(newIndex, 0, b);
+        events.emit("state:changed");
+      }
     };
-},
+  },
   arrow(blocksData) {
     return {
       type: "arrow",
@@ -3089,123 +3082,120 @@ if (oldPreview) {
 }
 
     function setupCanvasDelegation() {
-    let previewHideTimer = null;
-    let activePreview = null; // ссылка на динамическое превью
+    
+    // Время перед скрытием (чтобы успеть навести на превью)
+let previewHideTimer = null;
 
-    // ---------- Показ превью при наведении на иконку фотоаппарата ----------
-    canvasWrapper.addEventListener("mouseover", e => {
-        const btn = e.target.closest(".block-image-btn");
-        if (!btn) {
-            // Если курсор не над кнопкой – скрываем превью
-            if (activePreview) {
-                clearTimeout(previewHideTimer);
-                activePreview.remove();
-                activePreview = null;
-            }
-            return;
+// Показ превью при наведении на иконку камеры
+canvasWrapper.addEventListener("mouseover", e => {
+    const btn = e.target.closest(".block-image-btn");
+    if (!btn) {
+        // Мышь навелась на что-то другое – если есть активное превью, и мышь не над ним, скрываем
+        const activePreview = canvasWrapper.querySelector(".block-image-preview[style*='display: block']");
+        if (activePreview && !activePreview.contains(e.target) && !e.target.closest(".block-image-btn")) {
+            activePreview.style.display = 'none';
         }
+        return;
+    }
 
+    const block = btn.closest(".block");
+    if (!block) return;
+    const preview = block.querySelector(".block-image-preview");
+    if (!preview) return;
+
+    // Отменяем скрытие, если мышь вернулась на кнопку
+    if (previewHideTimer) clearTimeout(previewHideTimer);
+
+    // Показываем превью
+    preview.style.position = 'absolute';
+    preview.style.bottom = '6px';
+    preview.style.left = '30px';
+    preview.style.top = 'auto';
+    preview.style.right = 'auto';
+    // Показываем превью, только если картинка загружена
+const img = preview.querySelector('img');
+if (img && img.complete && img.naturalWidth > 0) {
+    preview.style.display = 'block';
+} else {
+    preview.style.display = 'none';
+    return; // не показываем, если картинка ещё не загрузилась или битая
+}
+
+    // Проверка выхода за границы окна
+    requestAnimationFrame(() => {
+        const rect = preview.getBoundingClientRect();
+        if (rect.top < 10) {
+            preview.style.bottom = 'auto';
+            preview.style.top = '32px';
+        }
+        if (rect.bottom > window.innerHeight - 10) {
+            preview.style.bottom = '6px';
+            preview.style.top = 'auto';
+        }
+        if (rect.right > window.innerWidth - 10) {
+            preview.style.left = 'auto';
+            preview.style.right = '0';
+        }
+        if (rect.left < 10) {
+            preview.style.left = '30px';
+            preview.style.right = 'auto';
+        }
+    });
+});
+
+// Скрытие превью при уходе мыши с кнопки / превью
+const hidePreview = (preview) => {
+    if (previewHideTimer) clearTimeout(previewHideTimer);
+    previewHideTimer = setTimeout(() => {
+        // Дополнительная проверка: если мышь всё ещё над превью или кнопкой, не скрываем
+        const hovered = document.querySelectorAll(':hover');
+        let stillHovering = false;
+        hovered.forEach(el => {
+            if (el === preview || el.closest('.block-image-btn') === preview.previousElementSibling) {
+                stillHovering = true;
+            }
+        });
+        if (!stillHovering) {
+            preview.style.display = 'none';
+        }
+    }, 50);
+};
+
+canvasWrapper.addEventListener("mouseout", e => {
+    const btn = e.target.closest(".block-image-btn");
+    const preview = e.target.closest(".block-image-preview");
+
+    if (btn) {
+        // Мышь покинула кнопку – возможно, перешла на превью? Проверим relatedTarget
+        const related = e.relatedTarget;
         const block = btn.closest(".block");
         if (!block) return;
-        const blockId = block.dataset.blockId;
-        const blockObj = state.getBlock(blockId);
-        if (!blockObj || !blockObj.imageUrl) return;
+        const previewEl = block.querySelector(".block-image-preview");
+        if (!previewEl) return;
 
-        // Удаляем старое превью, если есть
-        if (activePreview) activePreview.remove();
-        if (previewHideTimer) clearTimeout(previewHideTimer);
-
-        // Создаём элемент превью
-        const previewDiv = document.createElement('div');
-        previewDiv.className = 'block-image-preview-fixed';
-        previewDiv.style.cssText = `
-            position: fixed;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            box-shadow: 0 12px 28px rgba(0,0,0,0.5);
-            overflow: hidden;
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-        `;
-        const img = document.createElement('img');
-        img.src = blockObj.imageUrl;
-        img.style.maxWidth = '320px';
-        img.style.maxHeight = '320px';
-        img.style.objectFit = 'contain';
-        img.style.display = 'block';
-        previewDiv.appendChild(img);
-        document.body.appendChild(previewDiv);
-
-        // Ждём, чтобы браузер вычислил размеры
-        requestAnimationFrame(() => {
-            const btnRect = btn.getBoundingClientRect();
-            const previewRect = previewDiv.getBoundingClientRect();
-            const viewW = window.innerWidth;
-            const viewH = window.innerHeight;
-            const GAP = 100; // отступ от иконки
-
-            // Горизонталь: сначала справа, если не влезает – слева
-            let left = btnRect.right + GAP;
-            if (left + previewRect.width > viewW) {
-                left = btnRect.left - previewRect.width - GAP;
-                if (left < 0) left = 5;
-            }
-
-            // Вертикаль: выравниваем по верхнему краю иконки, но корректируем
-            let top = btnRect.top;
-            if (top + previewRect.height > viewH) {
-                top = viewH - previewRect.height - 5;
-            }
-            if (top < 0) top = 5;
-
-            previewDiv.style.left = left + 'px';
-            previewDiv.style.top = top + 'px';
-        });
-
-        activePreview = previewDiv;
-    });
-
-    // ---------- Скрытие превью с задержкой ----------
-    const hidePreviewDelayed = () => {
-        if (previewHideTimer) clearTimeout(previewHideTimer);
-        previewHideTimer = setTimeout(() => {
-            if (activePreview) {
-                activePreview.remove();
-                activePreview = null;
-            }
-        }, 80);
-    };
-
-    canvasWrapper.addEventListener("mouseout", e => {
-        const btn = e.target.closest(".block-image-btn");
-        const isOverPreview = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.block-image-preview-fixed');
-        if (btn && !isOverPreview) {
-            hidePreviewDelayed();
-        } else if (!btn) {
-            hidePreviewDelayed();
+        // Если курсор перешёл на само превью или его содержимое – не скрываем
+        if (related && (related === previewEl || previewEl.contains(related))) {
+            return;
         }
-    });
-
-    // Дополнительно: если мышь перешла на само превью – не скрываем
-    document.addEventListener('mouseover', e => {
-        if (e.target.closest && e.target.closest('.block-image-preview-fixed')) {
-            if (previewHideTimer) clearTimeout(previewHideTimer);
+        hidePreview(previewEl);
+    } else if (preview) {
+        // Мышь покинула превью – проверяем, не перешла ли обратно на кнопку
+        const related = e.relatedTarget;
+        const btnEl = preview.previousElementSibling; // Кнопка перед превью
+        if (related && (related === btnEl || btnEl.contains(related))) {
+            return;
         }
-    });
-
-    // ---------- Остальные обработчики (оставляем без изменений) ----------
+        hidePreview(preview);
+    }
+});
     canvasWrapper.addEventListener("pointerdown", _onCanvasPointerDown);
     canvasWrapper.addEventListener("dblclick", e => {
-        const block = e.target.closest(".block");
-        if (block && !e.target.closest(".block-item") && !e.target.closest("[data-action]")) {
-            openEditModal(block.dataset.blockId);
-        }
+      const block = e.target.closest(".block");
+      if (block && !e.target.closest(".block-item") && !e.target.closest("[data-action]")) {
+        openEditModal(block.dataset.blockId);
+      }
     });
-}
+  }
 
   // ---------- waypoint и label drag ----------
     function _startWaypointDrag(ev, connId, idx) {
@@ -4196,13 +4186,12 @@ function renderIconGrid() {
             state.state.selectedIcon = t;
             const labelInput = document.getElementById("newItemLabel");
             const currentLabel = labelInput.value.trim();
-            const lastAuto = state.state.editingLastAutoLabel || '';
-            if (currentLabel === '' || currentLabel === lastAuto) {
+            if (currentLabel === '' || currentLabel === lastAutoLabel) {
                 const autoLabel = ICON_LABELS[t] || '';
                 labelInput.value = autoLabel;
-                state.state.editingLastAutoLabel = autoLabel;
+                lastAutoLabel = autoLabel;
             } else {
-                state.state.editingLastAutoLabel = currentLabel;
+                lastAutoLabel = currentLabel;
             }
             renderIconGrid();
             const invInput = document.getElementById("newItemInvNum");
@@ -4309,8 +4298,7 @@ function deleteSelected() {
         });
     }, 200);
 
-    const frontIds = [...state.state.frontBlockIds].filter(id => selectedIds.includes(id));
-    history.push(HistoryActions.delete(blocksCopy, connectionsCopy, frontIds));
+    history.push(HistoryActions.delete(blocksCopy, connectionsCopy));
 
     let toast = document.createElement("div");
     toast.className = "toast toast-error";
@@ -4340,8 +4328,7 @@ function duplicateSelected() {
     });
     state.selectBlock(null);
     t.forEach(e => state.selectBlock(e.id, true));
-    const oldFrontIds = e.filter(id => state.state.frontBlockIds.has(id));
-    history.push(HistoryActions.duplicate(t.map(e => e.id), n, oldFrontIds));
+    history.push(HistoryActions.duplicate(t.map(e => e.id), n));
     showToast("Дублировано: " + t.length, "info");
 }
 
@@ -4599,17 +4586,13 @@ function autoSave() {
             blockIdCounter: state.state.blockIdCounter,
             connectionIdCounter: state.state.connectionIdCounter,
             blocks: state.state.blocks.map(e => ({
-              id: e.id, x: e.x, y: e.y, width: e.width, height: e.height,
-              bgColor: e.bgColor, isLocked: e.isLocked, title: e.title || "", imageUrl: e.imageUrl || "",
-              items: e.items.map(e => ({ ...e, icon: normalizeIconKey(e.icon) })),
-              cropRect: e.cropRect ? { ...e.cropRect } : null,
-              _imageNaturalWidth: e._imageNaturalWidth || null,
-              _imageNaturalHeight: e._imageNaturalHeight || null,
-              bgImageUrl: e.bgImageUrl || "",
-              bgCropRect: e.bgCropRect ? { ...e.bgCropRect } : null,
-              _bgImageNaturalWidth: e._bgImageNaturalWidth || null,
-              _bgImageNaturalHeight: e._bgImageNaturalHeight || null
-          })),
+				id: e.id, x: e.x, y: e.y, width: e.width, height: e.height,
+				bgColor: e.bgColor, isLocked: e.isLocked, title: e.title || "", imageUrl: e.imageUrl || "",
+				items: e.items.map(e => ({ ...e, icon: normalizeIconKey(e.icon) })),
+				cropRect: e.cropRect ? { ...e.cropRect } : null,
+				_imageNaturalWidth: e._imageNaturalWidth || null,
+				_imageNaturalHeight: e._imageNaturalHeight || null
+			})),
             connections: state.state.connections.map(e => ({
                 id: e.id, from: e.from, to: e.to, waypoints: e.waypoints,
                 stroke: e.stroke, strokeWidth: e.strokeWidth, dashArray: e.dashArray,
@@ -5273,29 +5256,15 @@ let interaction = new class {
                 case "duplicate": duplicateSelected(); break;
                 case "delete": deleteSelected(); break;
                 case "front": {
-                  const block = state.getBlock(selectedId);
-                  if (block) {
-                      const oldIndex = state.state.blocks.indexOf(block);
-                      const newIndex = state.state.blocks.length - 1;
-                      const wasFront = state.state.frontBlockIds.has(selectedId);
-                      state.bringToFront(selectedId);
-                      const becomesFront = state.state.frontBlockIds.has(selectedId);
-                      history.push(HistoryActions.order(selectedId, oldIndex, newIndex, wasFront, becomesFront));
-                  }
-                  break;
-              }
-              case "back": {
-                  const block = state.getBlock(selectedId);
-                  if (block) {
-                      const oldIndex = state.state.blocks.indexOf(block);
-                      const newIndex = 0;
-                      const wasFront = state.state.frontBlockIds.has(selectedId);
-                      state.sendToBack(selectedId);
-                      const becomesFront = state.state.frontBlockIds.has(selectedId);
-                      history.push(HistoryActions.order(selectedId, oldIndex, newIndex, wasFront, becomesFront));
-                  }
-                  break;
-              }
+                    const block = state.getBlock(selectedId);
+                    if (block) {
+                        const oldIndex = state.state.blocks.indexOf(block);
+                        const newIndex = state.state.blocks.length - 1;
+                        state.bringToFront(selectedId);
+                        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
+                    }
+                    break;
+                }
                 case "save-template": {
                     const blockId = this.cm.dataset.blockId;
                     if (blockId) {
@@ -5303,7 +5272,17 @@ let interaction = new class {
                         if (block) saveBlockAsTemplate(block);
                     }
                     break;
-                }                
+                }
+                case "back": {
+                    const block = state.getBlock(selectedId);
+                    if (block) {
+                        const oldIndex = state.state.blocks.indexOf(block);
+                        const newIndex = 0;
+                        state.sendToBack(selectedId);
+                        history.push(HistoryActions.order(selectedId, oldIndex, newIndex));
+                    }
+                    break;
+                }
             }
             this.cm.classList.remove("open");
         });
@@ -5415,14 +5394,10 @@ document.getElementById("btnSave").addEventListener("click", () => {
         blockIdCounter: state.state.blockIdCounter,
         connectionIdCounter: state.state.connectionIdCounter,
         blocks: state.state.blocks.map(e => ({
-          id: e.id, x: e.x, y: e.y, width: e.width, height: e.height,
-          bgColor: e.bgColor, isLocked: e.isLocked, title: e.title || "", imageUrl: e.imageUrl || "",
-          items: e.items.map(e => ({ ...e, icon: normalizeIconKey(e.icon) })),
-          bgImageUrl: e.bgImageUrl || "",
-          bgCropRect: e.bgCropRect ? { ...e.bgCropRect } : null,
-          _bgImageNaturalWidth: e._bgImageNaturalWidth || null,
-          _bgImageNaturalHeight: e._bgImageNaturalHeight || null
-      })),
+            id: e.id, x: e.x, y: e.y, width: e.width, height: e.height,
+            bgColor: e.bgColor, isLocked: e.isLocked, title: e.title || "", imageUrl: e.imageUrl || "",
+            items: e.items.map(e => ({ ...e, icon: normalizeIconKey(e.icon) }))
+        })),
         connections: state.state.connections
     };
     let t = new Blob([JSON.stringify(e, null, 2)], { type: "application/json" }),
