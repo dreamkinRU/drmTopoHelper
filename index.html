@@ -3090,13 +3090,12 @@ if (oldPreview) {
 
     function setupCanvasDelegation() {
     let previewHideTimer = null;
-    let activePreview = null; // ссылка на динамическое превью
+    let activePreview = null;
 
     // ---------- Показ превью при наведении на иконку фотоаппарата ----------
     canvasWrapper.addEventListener("mouseover", e => {
         const btn = e.target.closest(".block-image-btn");
         if (!btn) {
-            // Если курсор не над кнопкой – скрываем превью
             if (activePreview) {
                 clearTimeout(previewHideTimer);
                 activePreview.remove();
@@ -3111,11 +3110,10 @@ if (oldPreview) {
         const blockObj = state.getBlock(blockId);
         if (!blockObj || !blockObj.imageUrl) return;
 
-        // Удаляем старое превью, если есть
         if (activePreview) activePreview.remove();
         if (previewHideTimer) clearTimeout(previewHideTimer);
 
-        // Создаём элемент превью
+        // Создаём контейнер превью
         const previewDiv = document.createElement('div');
         previewDiv.className = 'block-image-preview-fixed';
         previewDiv.style.cssText = `
@@ -3126,36 +3124,66 @@ if (oldPreview) {
             box-shadow: 0 12px 28px rgba(0,0,0,0.5);
             overflow: hidden;
             z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             pointer-events: none;
         `;
+
+        // Размеры превью (фиксированные, можно изменить)
+        const PREVIEW_SIZE = 240;
+        previewDiv.style.width = PREVIEW_SIZE + 'px';
+        previewDiv.style.height = PREVIEW_SIZE + 'px';
+
         const img = document.createElement('img');
         img.src = blockObj.imageUrl;
-        img.style.maxWidth = '320px';
-        img.style.maxHeight = '320px';
-        img.style.objectFit = 'contain';
-        img.style.display = 'block';
+        img.style.position = 'absolute';
+        img.style.maxWidth = 'none';
+
+        const crop = blockObj.cropRect;
+        const nw = blockObj._imageNaturalWidth;
+        const nh = blockObj._imageNaturalHeight;
+
+        if (crop && crop.w > 0 && crop.h > 0 && nw && nh && crop.x + crop.w <= nw && crop.y + crop.h <= nh) {
+            // Обрезанная область
+            const scaleX = PREVIEW_SIZE / crop.w;
+            const scaleY = PREVIEW_SIZE / crop.h;
+            const scale = Math.min(scaleX, scaleY);
+            const finalW = nw * scale;
+            const finalH = nh * scale;
+            const leftOffset = -crop.x * scale;
+            const topOffset = -crop.y * scale;
+            img.style.width = finalW + 'px';
+            img.style.height = finalH + 'px';
+            img.style.left = leftOffset + 'px';
+            img.style.top = topOffset + 'px';
+        } else {
+            // Полное изображение (центрируем)
+            img.style.maxWidth = PREVIEW_SIZE + 'px';
+            img.style.maxHeight = PREVIEW_SIZE + 'px';
+            img.style.width = 'auto';
+            img.style.height = 'auto';
+            img.style.position = 'relative';
+            img.style.top = '50%';
+            img.style.left = '50%';
+            img.style.transform = 'translate(-50%, -50%)';
+        }
+
         previewDiv.appendChild(img);
         document.body.appendChild(previewDiv);
 
-        // Ждём, чтобы браузер вычислил размеры
         requestAnimationFrame(() => {
             const btnRect = btn.getBoundingClientRect();
             const previewRect = previewDiv.getBoundingClientRect();
             const viewW = window.innerWidth;
             const viewH = window.innerHeight;
-            const GAP = 100; // отступ от иконки
+            const GAP = 30; // Расстояние от иконки 30px
 
-            // Горизонталь: сначала справа, если не влезает – слева
+            // Горизонтальная позиция
             let left = btnRect.right + GAP;
             if (left + previewRect.width > viewW) {
                 left = btnRect.left - previewRect.width - GAP;
                 if (left < 0) left = 5;
             }
 
-            // Вертикаль: выравниваем по верхнему краю иконки, но корректируем
+            // Вертикальная позиция (выравнивание по верхнему краю иконки)
             let top = btnRect.top;
             if (top + previewRect.height > viewH) {
                 top = viewH - previewRect.height - 5;
@@ -3169,7 +3197,6 @@ if (oldPreview) {
         activePreview = previewDiv;
     });
 
-    // ---------- Скрытие превью с задержкой ----------
     const hidePreviewDelayed = () => {
         if (previewHideTimer) clearTimeout(previewHideTimer);
         previewHideTimer = setTimeout(() => {
@@ -3190,14 +3217,50 @@ if (oldPreview) {
         }
     });
 
-    // Дополнительно: если мышь перешла на само превью – не скрываем
     document.addEventListener('mouseover', e => {
         if (e.target.closest && e.target.closest('.block-image-preview-fixed')) {
             if (previewHideTimer) clearTimeout(previewHideTimer);
         }
     });
 
-    // ---------- Остальные обработчики (оставляем без изменений) ----------
+    // ---------- КЛИК ПО ФОТИКУ: открыть модалку обрезки, если блок не заблокирован ----------
+    canvasWrapper.addEventListener("click", e => {
+        const btn = e.target.closest(".block-image-btn");
+        if (!btn) return;
+        e.stopPropagation();
+
+        const blockEl = btn.closest(".block");
+        if (!blockEl) return;
+        const blockId = blockEl.dataset.blockId;
+        const block = state.getBlock(blockId);
+        if (!block) return;
+
+        if (block.isLocked) {
+            showToast("Блок заблокирован, редактирование изображения недоступно", "error");
+            return;
+        }
+
+        const url = block.imageUrl;
+        if (!url) {
+            showToast("Нет привязанного изображения", "error");
+            return;
+        }
+
+        const prevEditingId = state.state.editingBlockId;
+        state.state.editingBlockId = blockId;
+
+        openImagePreview(url, 'main');
+
+        const checkInterval = setInterval(() => {
+            const modal = document.getElementById('imagePreviewModal');
+            if (!modal || !modal.classList.contains('open')) {
+                state.state.editingBlockId = prevEditingId;
+                clearInterval(checkInterval);
+            }
+        }, 200);
+    });
+
+    // ---------- ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (drag, выделение, даблклик) ----------
     canvasWrapper.addEventListener("pointerdown", _onCanvasPointerDown);
     canvasWrapper.addEventListener("dblclick", e => {
         const block = e.target.closest(".block");
