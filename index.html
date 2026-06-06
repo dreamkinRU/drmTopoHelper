@@ -294,8 +294,6 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .about-credit{position:absolute;top:8px;right:10px;font-size:11px;color:#ffffff;opacity:0.7}
 #newItemInvNum{flex:0.75 !important}
 #newItemLabel{flex:1.125 !important}
-.block.selected.unlocked{animation:selectedPulse 2s infinite ease-in-out}
-.block.selected:not(.unlocked){animation:none;box-shadow:0 0 0 3px rgba(232,160,48,.15),0 8px 32px rgba(0,0,0,.4)}
 .wp-mini-popup{position:absolute;z-index:400;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:4px;display:flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(0,0,0,.5);pointer-events:auto}
 .wp-mini-popup input[type="color"]{width:22px;height:25px;border:none;background:none;cursor:pointer;padding:0;border-radius:0}
 .wp-mini-popup button{background:transparent;border:1px solid var(--border);border-radius:4px;padding:2px 4px;cursor:pointer;color:var(--fg);display:flex;align-items:center;justify-content:center}
@@ -1139,6 +1137,7 @@ const state = (() => {
     selectedIcon: null,
     editingItems: [],
     editingItemIndex: null,
+    editingLastAutoLabel: '',
     connections: [],
     connectionIdCounter: 0,
     selectedConnectionId: null,
@@ -1809,20 +1808,8 @@ function applyBgImage(layerEl, block) {
     // Слой для фонового изображения (под заголовком)
   const bgLayer = document.createElement('div');
   bgLayer.className = 'block-bg-layer';
-  bgLayer.style.position = 'absolute';
-  bgLayer.style.top = '28px';
-  bgLayer.style.left = '0';
-  bgLayer.style.right = '0';
-  bgLayer.style.bottom = '0';
-  bgLayer.style.borderRadius = '0 0 10px 10px'; // чтобы не вылезало за скругление блока
-  bgLayer.style.pointerEvents = 'none';          // не мешает кликам по элементам
-  if (block.bgImageUrl) {
-    applyBgImage(bgLayer, block);
-  } else {
-    bgLayer.style.backgroundImage = '';
-    bgLayer.style.backgroundSize = '';
-    bgLayer.style.backgroundPosition = '';
-  }
+  bgLayer.style.cssText = 'position:absolute;top:28px;left:0;right:0;bottom:0;border-radius:0 0 10px 10px;pointer-events:none';
+  applyBgImage(bgLayer, block);
   el.appendChild(bgLayer);
 
   const titleDiv = document.createElement("div");
@@ -2042,7 +2029,7 @@ if (oldPreview) {
       });
 
       _renderConnectionPath(group, conn, dString);
-      _renderConnectionWaypoints(group, conn, absWaypoints, tempPath, totalLen);
+      _renderConnectionWaypoints(group, conn, absWaypoints);
       if (conn.label && conn.label.trim()) {
         _renderConnectionLabel(group, conn, tempPath, totalLen);
       }
@@ -2103,7 +2090,7 @@ if (oldPreview) {
     group.appendChild(hit);
   }
 
-  function _renderConnectionWaypoints(group, conn, absWaypoints, tempPath, totalLen) {
+  function _renderConnectionWaypoints(group, conn, absWaypoints) {
     const waypoints = conn.waypoints || [];
     absWaypoints.forEach((pt, idx) => {
       if (!(state.state.selectedConnectionId === conn.id ||
@@ -2817,51 +2804,6 @@ if (oldPreview) {
     return { startPt, endPt };
   }
 
-  function _getAbsoluteWaypointsFromRelative(conn, startPt, endPt, curvePathData) {
-    const waypoints = conn.waypoints ? [...conn.waypoints] : [];
-    const allPts = [startPt];
-    for (let wp of waypoints) {
-      if (wp.t !== undefined) allPts.push(null);
-      else {
-        let ax = wp.offsetX, ay = wp.offsetY;
-        if (wp.blockId) { const b = state.getBlock(wp.blockId); if (b) { ax = b.x + wp.offsetX; ay = b.y + wp.offsetY; } }
-        allPts.push({ x: ax, y: ay });
-      }
-    }
-    allPts.push(endPt);
-
-    let wpIdx = 0;
-    for (let i = 0; i < allPts.length; i++) {
-      if (allPts[i] === null) {
-        const wp = waypoints[wpIdx];
-        const targetDist = wp.t * curvePathData.totalLen;
-        const tempPath = document.createElementNS(SVG_NS, "path");
-        tempPath.setAttribute("d", curvePathData.d);
-        const pt = tempPath.getPointAtLength(Math.min(targetDist, curvePathData.totalLen));
-        allPts[i] = { x: pt.x, y: pt.y };
-        wpIdx++;
-      }
-    }
-    return allPts;
-  }
-
-function _findWaypointInsertionIndex(allAbsPoints, mouseX, mouseY, totalLen) {
-    let bestDist = Infinity, bestT = 0, insertIdx = 0;
-    let cumDist = 0;
-    for (let j = 0; j < allAbsPoints.length - 1; j++) {
-      const p1 = allAbsPoints[j], p2 = allAbsPoints[j + 1];
-      const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      const dx = p2.x - p1.x, dy = p2.y - p1.y;
-      const len2 = dx * dx + dy * dy;
-      const tSeg = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((mouseX - p1.x) * dx + (mouseY - p1.y) * dy) / len2));
-      const projX = p1.x + tSeg * dx, projY = p1.y + tSeg * dy;
-      const dist = Math.hypot(mouseX - projX, mouseY - projY);
-      if (dist < bestDist) { bestDist = dist; bestT = totalLen > 0 ? (cumDist + tSeg * segLen) / totalLen : 0; insertIdx = j; }
-      cumDist += segLen;
-    }
-    return { insertIdx: Math.min(insertIdx, allAbsPoints.length - 2), bestT };
-  }
-
 function addWaypointFromEvent(e, connId) {
     const conn = state.state.connections.find(c => c.id === connId);
     if (!conn) return;
@@ -3552,7 +3494,6 @@ function resetEditing() {
     btnAddItem.innerHTML = renderIconHTML("plus") + " Добавить элемент";
     renderIconGrid();
     renderItemList();
-    lastAutoLabel = '';
 }
 
 function closeEditModal() {
@@ -5266,18 +5207,10 @@ document.addEventListener('pointerup', () => {
     }
 });
 
-// Очистка адреса
-document.getElementById('btnImageClear').addEventListener('click', () => {
-    document.getElementById('blockImageUrl').value = '';
-    showToast('Адрес изображения очищен', 'info');
-});
-
-
 // Очистка адреса изображения
 document.getElementById('btnImageClear').addEventListener('click', () => {
     document.getElementById('blockImageUrl').value = '';
     showToast('Адрес изображения очищен', 'info');
-    // Опционально: scheduleUpdate();
 });
 
 // Создание блоков через size‑selector (S / M / L)
