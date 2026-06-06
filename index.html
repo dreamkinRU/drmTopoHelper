@@ -567,7 +567,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <div class="canvas-wrapper" id="canvasWrapper">
 <svg id="guidesSvg">
 <defs>
-<marker id="marker-triangle" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="#e8a030"/></marker>
+<marker id="marker-triangle" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="#e8a030"/></marker>
 <marker id="marker-diamond" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><polygon points="5,0 10,5 5,10 0,5" fill="#e8a030"/></marker>
 <marker id="marker-circle" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><circle cx="5" cy="5" r="4.5" fill="#e8a030"/></marker>
 <marker id="marker-none" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="0" markerHeight="0"><polygon points="0,0 0,0" fill="none"/></marker>
@@ -960,7 +960,7 @@ function buildCubicCurve(e, t, n, o) {
   };
   let a = l[t] || l.right,
       c = l[o] || l.left;
-  return `M ${e.x} ${e.y} C ${e.x+a.x*s} ${e.y+a.y*s}, ${n.x+c.x*s} ${n.y+c.y*s}, ${n.x} ${n.y}`;
+  return `M ${e.x} ${e.y} C ${e.x+a.x*s} ${e.y+a.y*s}, ${n.x-c.x*s} ${n.y-c.y*s}, ${n.x} ${n.y}`;
 }
 
 function buildCurvePath(pts, startTangent, endTangent) {
@@ -3044,7 +3044,8 @@ function addWaypointFromEvent(e, connId) {
           tgtPort.classList.add("active", "target-mode");
           tgtPort.dataset.blockId = target.blockId;
           tgtPort.dataset.itemIndex = target.itemIndex != null ? target.itemIndex : "";
-          tempConn.setAttribute("d", buildCubicCurve(startPoint, startPoint.side, endPoint, endPoint.side));
+          const oppSides = { top: "bottom", bottom: "top", left: "right", right: "left" };
+tempConn.setAttribute("d", buildCubicCurve(startPoint, startPoint.side, endPoint, oppSides[endPoint.side]));
           return;
         }
       }
