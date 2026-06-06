@@ -368,6 +368,110 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 .zoom-widget-btn:hover{background:rgba(255,255,255,0.3)}
 .zoom-widget-btn.reset{font-size:14px;width:auto;border-radius:12px;padding:0 6px}
 .zoom-widget-label{min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* ===== Поле поиска ===== */
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-field {
+  width: 210px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color .2s var(--easing), width .2s var(--easing);
+}
+.search-field:focus {
+  border-color: var(--accent);
+  width: 210px;
+}
+.search-field::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 360px;          /* шире, чтобы не было горизонтальной прокрутки */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  display: none;
+  z-index: var(--z-context-menu);
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+.search-results.open {
+  display: block;
+}
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  transition: background .12s var(--easing);
+}
+.search-result-item:last-child {
+  border-bottom: none;
+}
+.search-result-item:hover {
+  background: rgba(232,160,48,.12);
+}
+.search-result-item .result-match {
+  color: var(--accent);
+  font-weight: 600;
+}
+.search-result-item .result-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--muted);
+}
+.search-result-item .result-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-result-item .result-block-title {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+/* ===== Анимация моргания красной рамкой ===== */
+@keyframes searchBlink {
+  0%, 100% { outline-color: transparent; outline-width: 0; }
+  25% { outline-color: #ff3333; outline-width: 3px; }
+  50% { outline-color: transparent; outline-width: 0; }
+  75% { outline-color: #ff3333; outline-width: 3px; }
+}
+.block-item.search-highlight {
+  animation: searchBlink 0.8s ease-in-out 2;
+  outline-style: solid;
+  outline-offset: -3px;
+  z-index: 10 !important;
+  border-radius: 8px;
+  position: relative;
+}
 </style>
 </head>
 <body>
@@ -430,6 +534,11 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <button class="btn btn-success" id="btnSave" data-tooltip="Сохранить схему"><span class="drm-icon-slot" data-icon="download"></span><span class="btn-text"></span></button>
 <button class="btn" id="btnLoad" data-tooltip="Загрузить схему"><span class="drm-icon-slot" data-icon="upload"></span><span class="btn-text"></span></button>
 <input type="file" id="fileInput" accept=".json">
+
+<div class="search-wrapper">
+  <input type="text" id="searchInput" class="search-field" placeholder="🔍 Поиск по блокам… (Ctrl+F)" autocomplete="off">
+  <div class="search-results" id="searchResults"></div>
+</div>
 
 <div class="spacer"></div>
 
@@ -676,7 +785,7 @@ body{font-family:'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif;b
 <script>
 
 // ====================== 1. КОНФИГУРАЦИЯ ======================
-const APP_VERSION = "1.0alpha9";
+const APP_VERSION = "1.0alpha10";
 document.title = "dreamkin topology helper v." + APP_VERSION;
 const aboutVersionEl = document.getElementById("aboutVersion");
 if (aboutVersionEl) aboutVersionEl.textContent = "Версия " + APP_VERSION;
@@ -5717,6 +5826,194 @@ function setupCleanImageModal() {
 // Вызываем после загрузки страницы и при каждом открытии модалки (на всякий случай)
 setTimeout(setupCleanImageModal, 100);
 // Также при открытии модалки (например, в openImagePreview) можно вызывать повторно
+
+// ====================== ПОИСК ПО БЛОКАМ ======================
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+let searchTimeout = null;
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  const query = searchInput.value.trim().toLowerCase();
+  if (!query) {
+    searchResults.classList.remove('open');
+    searchResults.innerHTML = '';
+    return;
+  }
+  searchTimeout = setTimeout(() => performSearch(query), 150);
+});
+
+searchInput.addEventListener('blur', () => {
+  setTimeout(() => {
+    if (!searchResults.contains(document.activeElement)) {
+      searchResults.classList.remove('open');
+    }
+  }, 200);
+});
+
+searchInput.addEventListener('focus', () => {
+  const query = searchInput.value.trim().toLowerCase();
+  if (query) performSearch(query);
+});
+
+function highlightSearchResult(blockId, itemIndex) {
+  // Выделяем блок
+  state.selectBlock(blockId, false);
+  events.emit('selection:changed', state.state.selectedIds);
+
+  // Прокручиваем к блоку
+  var block = state.getBlock(blockId);
+  if (block) {
+    workspace.scrollLeft = Math.max(0, block.x * state.state.zoom - workspace.clientWidth / 2 + block.width * state.state.zoom / 2);
+    workspace.scrollTop = Math.max(0, block.y * state.state.zoom - workspace.clientHeight / 2 + block.height * state.state.zoom / 2);
+  }
+
+  // Моргание красной рамкой
+  var blockEl = document.getElementById(blockId);
+  if (blockEl) {
+    var itemEl = blockEl.querySelector('.block-item[data-item-index="' + itemIndex + '"]');
+    if (itemEl) {
+      itemEl.classList.remove('search-highlight');
+      void itemEl.offsetWidth;  // форсируем рефлоу
+      itemEl.classList.add('search-highlight');
+      setTimeout(function() {
+        itemEl.classList.remove('search-highlight');
+      }, 1700);
+    }
+  }
+}
+
+function performSearch(query) {
+  const results = [];
+  state.state.blocks.forEach(block => {
+    if (!block.items || !block.items.length) return;
+    block.items.forEach((item, idx) => {
+      const invNum = (item.invNum || '').toLowerCase();
+      const label = (item.label || '').toLowerCase();
+      const matchInv = invNum.includes(query);
+      const matchLabel = label.includes(query);
+      if (matchInv || matchLabel) {
+        let matchedField = '';
+        if (matchInv && matchLabel) matchedField = (item.invNum || '') + ' · ' + (item.label || '');
+        else if (matchInv) matchedField = item.invNum || '';
+        else matchedField = item.label || '';
+        results.push({
+          blockId: block.id,
+          itemIndex: idx,
+          blockTitle: block.title || 'Без названия',
+          itemInvNum: item.invNum || '',
+          itemLabel: item.label || '',
+          matchedField,
+          icon: normalizeIconKey(item.icon)
+        });
+      }
+    });
+  });
+
+  // Единственный результат — сразу выделяем, без выпадашки
+  if (results.length === 1) {
+    const r = results[0];
+    searchResults.classList.remove('open');
+    searchResults.innerHTML = '';
+    highlightSearchResult(r.blockId, r.itemIndex);
+    searchInput.value = '';
+    searchInput.blur();
+    return;
+  }
+
+  var limited = results.slice(0, 30);
+
+  if (limited.length === 0) {
+    searchResults.innerHTML = '<div class="search-result-item" style="color:var(--muted);pointer-events:none;">Ничего не найдено</div>';
+    searchResults.classList.add('open');
+    return;
+  }
+
+  searchResults.innerHTML = limited.map(function(r, i) {
+    var displayText = r.matchedField;
+    if (r.itemInvNum && displayText.indexOf('·') === -1) {
+      displayText = r.itemInvNum + (r.itemLabel ? ' · ' + r.itemLabel : '');
+    } else if (!displayText) {
+      displayText = r.itemLabel || '(пусто)';
+    }
+    return '<div class="search-result-item" data-block-id="' + r.blockId + '" data-item-index="' + r.itemIndex + '" data-index="' + i + '">' +
+      '<span class="result-icon">' + renderIconHTML(r.icon) + '</span>' +
+      '<span class="result-text"><span class="result-match">' + escapeHtml(displayText) + '</span></span>' +
+      '<span class="result-block-title">' + escapeHtml(r.blockTitle) + '</span>' +
+    '</div>';
+  }).join('');
+
+  searchResults.classList.add('open');
+  searchResults._results = limited;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+searchResults.addEventListener('mousedown', (e) => {
+  const item = e.target.closest('.search-result-item');
+  if (!item) return;
+  e.preventDefault();
+
+  const blockId = item.dataset.blockId;
+  const itemIndex = parseInt(item.dataset.itemIndex, 10);
+  if (!blockId) return;
+
+  highlightSearchResult(blockId, itemIndex);
+
+  searchResults.classList.remove('open');
+  searchInput.value = '';
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const items = searchResults.querySelectorAll('.search-result-item');
+    if (!items.length) return;
+    const active = searchResults.querySelector('.search-result-item.active') || (e.key === 'ArrowDown' ? items[0] : items[items.length - 1]);
+    let next;
+    if (e.key === 'ArrowDown') {
+      next = active.nextElementSibling || items[0];
+    } else {
+      next = active.previousElementSibling || items[items.length - 1];
+    }
+    items.forEach(el => el.classList.remove('active'));
+    if (next) {
+      next.classList.add('active');
+      next.scrollIntoView({ block: 'nearest' });
+    }
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const active = searchResults.querySelector('.search-result-item.active');
+    if (active) {
+      active.click();
+    } else {
+      const first = searchResults.querySelector('.search-result-item');
+      if (first) first.click();
+    }
+  }
+  if (e.key === 'Escape') {
+    searchResults.classList.remove('open');
+    searchInput.blur();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  // Ctrl+F или Cmd+F — открыть поиск
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyF') {
+    e.preventDefault();
+    const input = document.getElementById('searchInput');
+    if (input) {
+      input.focus();
+      input.select(); // сразу выделяем весь текст, если есть
+    }
+  }
+});
+
 </script>
 </body>
 </html>
